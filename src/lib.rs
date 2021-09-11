@@ -6,14 +6,13 @@
     rust_2018_idioms
 )]
 
+use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
 
-pub mod solver;
-
 const DAM_PARTICLES_X: usize = 10;
-const DAM_PARTICLES_Y: usize = 1000; // TODO CHANGE
+const DAM_PARTICLES_Y: usize = 1000;
 const MAX_BLOCKS: usize = 50;
 const BLOCK_PARTICLES: usize = 500;
 const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change

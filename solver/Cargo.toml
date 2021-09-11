@@ -1,0 +1,17 @@
+[package]
+name = "solver"
+version = "0.0.0"
+authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+cgmath = "0.18.0"
+glam = "0.17.3"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

@@ -1,8 +1,8 @@
+use cgmath;
 use glium::{glutin, implement_vertex, index, uniform, Surface};
 use glutin::event::{ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode, WindowEvent};
 use log::info;
-
-pub mod solver;
+use solver;
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;

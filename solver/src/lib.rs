@@ -96,8 +96,8 @@ impl Grid {
 
     #[inline]
     pub fn hash(&self, x: i32, y: i32) -> usize {
-        (i32::abs(x.overflowing_mul(92837111i32).0 ^ y.overflowing_mul(689287499i32).0)
-            % (self.size as i32)) as usize
+        (i32::abs(x.wrapping_mul(92837111i32) ^ y.wrapping_mul(689287499i32)) % (self.size as i32))
+            as usize
     }
 }
 

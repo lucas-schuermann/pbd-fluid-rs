@@ -1,0 +1,13 @@
+[package]
+name = "native"
+version = "0.0.0"
+authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+solver = {path="../solver"}
+cgmath = "0.18.0"
+glium = { version = "0.30.1"}
+log = { version = "0.4"}
+env_logger = { version = "0.9.0"}
