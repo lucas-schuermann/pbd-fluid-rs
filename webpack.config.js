@@ -15,6 +15,7 @@ module.exports = (_, argv) => {
                 template: 'index.html'
             }),
             new WasmPackPlugin({
+                extraArgs: "-- --features=build-wasm",
                 crateDirectory: path.resolve(__dirname, ".")
             })
         ],

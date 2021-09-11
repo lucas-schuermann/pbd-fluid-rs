@@ -16,6 +16,7 @@ import('./pkg').then(rust_wasm => {
     // attach perf stats window
     const stats = new Stats();
     stats.dom.style.position = 'absolute';
+    stats.showPanel(1); // ms per frame
     document.getElementById('stats').appendChild(stats.dom);
 
     // import wasm package and initialize simulation

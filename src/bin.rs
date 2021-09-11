@@ -6,10 +6,10 @@ pub mod solver;
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
-//const MAX_BLOCKS: usize = 50;
+const MAX_BLOCKS: usize = 50;
 const BLOCK_PARTICLES: usize = 500;
-//const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change
-const POINT_SIZE: f32 = 6.0;
+const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change
+const POINT_SIZE: f32 = 7.0;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
     let wb = glutin::window::WindowBuilder::new()
         .with_inner_size(size)
         .with_resizable(false)
-        .with_title("PBD Fluid");
+        .with_title("Position Based Fluid");
     let cb = glutin::ContextBuilder::new();
     let display = glium::Display::new(wb, cb, &event_loop)
         .map_err(|e| format!("Failed to create glium display: {}", e))?;
@@ -64,6 +64,14 @@ fn main() -> Result<(), String> {
         matrix: ortho_matrix
     };
     let indices = index::NoIndices(index::PrimitiveType::Points);
+
+    // preallocate vertex buffer
+    let vertex_buffer = glium::VertexBuffer::empty_dynamic(&display, MAX_PARTICLES * 2).unwrap();
+    let draw_params = glium::DrawParameters {
+        polygon_mode: glium::PolygonMode::Point,
+        point_size: Some(POINT_SIZE),
+        ..Default::default()
+    };
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -112,7 +120,7 @@ fn main() -> Result<(), String> {
             .get_positions()
             .iter()
             .map(|p| {
-                let mut pp = p.clone();
+                let mut pp = *p;
                 pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
                 pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
                 Vertex {
@@ -120,22 +128,12 @@ fn main() -> Result<(), String> {
                 }
             })
             .collect();
-        let vertex_buffer = glium::VertexBuffer::new(&display, &data).unwrap();
+        vertex_buffer.slice(0..data.len()).unwrap().write(&data);
 
         let mut target = display.draw();
         target.clear_color(0.9, 0.9, 0.9, 1.0);
         target
-            .draw(
-                &vertex_buffer,
-                &indices,
-                &program,
-                &uniforms,
-                &glium::DrawParameters {
-                    polygon_mode: glium::PolygonMode::Point,
-                    point_size: Some(POINT_SIZE),
-                    ..Default::default()
-                },
-            )
+            .draw(&vertex_buffer, &indices, &program, &uniforms, &draw_params)
             .unwrap();
         target.finish().unwrap();
     });
