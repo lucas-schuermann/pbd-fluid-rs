@@ -10,7 +10,7 @@ cgmath = "0.18.0"
 glam = "0.17.3"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = { version = "0.3", features = ["html_reports"] }
 
 [[bench]]
 name = "benchmark"
