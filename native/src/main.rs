@@ -117,10 +117,10 @@ fn main() -> Result<(), String> {
 
         // draw
         let data: Vec<Vertex> = sim
-            .get_positions()
+            .particles
             .iter()
             .map(|p| {
-                let mut pp = *p;
+                let mut pp = p.pos;
                 pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
                 pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
                 Vertex {

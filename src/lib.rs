@@ -36,7 +36,7 @@ impl Simulation {
 
     #[wasm_bindgen]
     pub fn get_num_particles(&self) -> usize {
-        self.state.num_particles
+        self.state.particles.len()
     }
 
     #[wasm_bindgen]
@@ -61,10 +61,10 @@ impl Simulation {
     fn draw(&self) {
         let vertices: Vec<f32> = self
             .state
-            .get_positions()
+            .particles
             .iter()
             .map(|p| {
-                let mut pp = p.clone();
+                let mut pp = p.pos;
                 pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
                 pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
                 pp.to_array()
@@ -89,7 +89,7 @@ impl Simulation {
             );
         }
 
-        let vert_count = self.state.num_particles as i32;
+        let vert_count = self.state.particles.len() as i32;
         self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.context
             .draw_arrays(WebGl2RenderingContext::POINTS, 0, vert_count);

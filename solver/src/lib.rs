@@ -35,11 +35,11 @@ const GRID_SPACING: f32 = H * 1.5;
 const G2: f32 = GRID_SPACING * GRID_SPACING;
 const INV_GRID_SPACING: f32 = 1.0 / GRID_SPACING;
 
-#[derive(Debug)]
-pub struct Particles {
-    pub pos: Vec<Vec2>,
-    prev: Vec<Vec2>,
-    vel: Vec<Vec2>,
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Particle {
+    pub pos: Vec2,
+    prev: Vec2,
+    vel: Vec2,
 }
 
 #[derive(Debug)]
@@ -52,18 +52,12 @@ pub struct Grid {
     origin: Vec2,
 }
 
-impl Particles {
-    pub fn new() -> Self {
+impl Particle {
+    pub fn new(x: f32, y: f32) -> Self {
         Self {
-            pos: vec![Vec2::ZERO; MAX_PARTICLES],
-            prev: vec![Vec2::ZERO; MAX_PARTICLES],
-            vel: vec![Vec2::ZERO; MAX_PARTICLES],
+            pos: Vec2::new(x, y),
+            ..Default::default()
         }
-    }
-
-    #[inline]
-    pub fn positions(&self) -> &Vec<Vec2> {
-        &self.pos
     }
 }
 
@@ -76,14 +70,6 @@ impl Grid {
             current_mark: 0,
             next: vec![Some(0); MAX_PARTICLES],
             origin: Vec2::new(-100.0, -1.0),
-        }
-    }
-
-    // TODO is this needed?
-    pub fn clear(&mut self) {
-        for i in 0..self.size {
-            self.first[i] = None;
-            self.marks[i] = 0;
         }
     }
 
@@ -103,9 +89,8 @@ impl Grid {
 
 #[derive(Debug)]
 pub struct State {
-    pub particles: Particles,
+    pub particles: Vec<Particle>,
     grads: Vec<Vec2>,
-    pub num_particles: usize,
     boundaries: [Vec4; 2],
     grid: Grid,
     first_neighbor: Vec<usize>,
@@ -120,9 +105,8 @@ impl State {
             vec4(WIDTH * 0.5, WIDTH * 0.5 + 0.1, -0.01, HEIGHT),   // right column
         ];
         Self {
-            particles: Particles::new(),
+            particles: Vec::with_capacity(MAX_PARTICLES),
             grads: vec![Vec2::ZERO; 1000],
-            num_particles: 0,
             boundaries,
             grid: Grid::new(),
             first_neighbor: vec![0; MAX_PARTICLES + 1],
@@ -130,13 +114,8 @@ impl State {
         }
     }
 
-    pub fn get_positions(&self) -> &[Vec2] {
-        &self.particles.pos[0..self.num_particles]
-    }
-
     pub fn clear(&mut self) {
-        self.num_particles = 0;
-        // TODO
+        self.particles.clear();
     }
 
     pub fn init_dam_break(&mut self, dam_particles_x: usize, dam_particles_y: usize) {
@@ -146,19 +125,14 @@ impl State {
         if dam_particles_x * dam_particles_y > MAX_PARTICLES {
             return; // TODO error
         }
-        self.num_particles = dam_particles_x * dam_particles_y;
-        let mut i = 0;
         for y in 0..dam_particles_y {
             for x in 0..dam_particles_x {
-                self.particles.pos[i].x = fluid_orig.x + x as f32 * PARTICLE_DIAMETER;
-                self.particles.pos[i].x += eps * (y % 2) as f32;
-                self.particles.pos[i].y = fluid_orig.y + y as f32 * PARTICLE_DIAMETER;
-                self.particles.vel[i] = Vec2::ZERO;
-                i += 1;
+                self.particles.push(Particle::new(
+                    fluid_orig.x + x as f32 * PARTICLE_DIAMETER + eps * (y % 2) as f32,
+                    fluid_orig.y + y as f32 * PARTICLE_DIAMETER,
+                ));
             }
         }
-
-        //self.grid.clear(); // TODO is this needed?
     }
 
     pub fn init_block(&mut self, _block_max_particles: usize) {}
@@ -168,75 +142,79 @@ impl State {
 
         for _ in 0..NUM_SOLVER_SUBSTEPS {
             // predict
-            for i in 0..self.num_particles {
-                self.particles.vel[i] += G * DT;
-                self.particles.prev[i] = self.particles.pos[i];
-                self.particles.pos[i] += self.particles.vel[i] * DT;
-            }
+            self.particles.iter_mut().for_each(|p| {
+                p.vel += G * DT;
+                p.prev = p.pos;
+                p.pos += p.vel * DT;
+            });
 
             // solve
             self.solve_boundaries();
             self.solve_fluid();
 
             // derive velocities
-            for i in 0..self.num_particles {
-                let mut v = self.particles.pos[i] - self.particles.prev[i];
+            self.particles.iter_mut().for_each(|p| {
+                let mut v = p.pos - p.prev;
                 let vel = v.length();
                 // CFL
                 if vel > MAX_VEL {
                     v *= MAX_VEL / vel;
-                    self.particles.pos[i] = self.particles.prev[i] + v;
+                    p.pos = p.prev + v;
                 }
-                self.particles.vel[i] = v / DT;
-                self.apply_viscosity(i);
-            }
+                p.vel = v / DT;
+                // self.apply_viscosity(i); TODO
+            });
         }
     }
 
     fn find_neighbors(&mut self) {
         // hash particles into grid
         self.grid.current_mark += 1;
-        for i in 0..self.num_particles {
-            let (gx, gy) = self.grid.map(self.particles.pos[i]);
-            let h = self.grid.hash(gx, gy);
-            if self.grid.marks[h] != self.grid.current_mark {
-                self.grid.marks[h] = self.grid.current_mark;
-                self.grid.first[h] = None;
+        let grid = &mut self.grid;
+        self.particles.iter().enumerate().for_each(|(i, p)| {
+            let (gx, gy) = grid.map(p.pos);
+            let h = grid.hash(gx, gy);
+            if grid.marks[h] != grid.current_mark {
+                grid.marks[h] = grid.current_mark;
+                grid.first[h] = None;
             }
-            self.grid.next[i] = self.grid.first[h];
-            self.grid.first[h] = Some(i);
-        }
+            grid.next[i] = grid.first[h];
+            grid.first[h] = Some(i);
+        });
 
         // collect neighbors
         self.neighbors.clear();
-        for i in 0..self.num_particles {
-            let p = self.particles.pos[i];
-            self.first_neighbor[i] = self.neighbors.len();
-            let (gx, gy) = self.grid.map(p);
+        let neighbors = &mut self.neighbors;
+        let first_neighbor = &mut self.first_neighbor;
+        let particles = &self.particles;
+        particles.iter().enumerate().for_each(|(i, p)| {
+            first_neighbor[i] = neighbors.len();
+            let (gx, gy) = grid.map(p.pos);
             for x in gx - 1..=(gx + 1) {
                 for y in gy - 1..=(gy + 1) {
-                    let h = self.grid.hash(x, y);
-                    if self.grid.marks[h] != self.grid.current_mark {
+                    let h = grid.hash(x, y);
+                    if grid.marks[h] != grid.current_mark {
                         continue;
                     }
-                    let mut j = self.grid.first[h];
+                    let mut j = grid.first[h];
                     while let Some(ji) = j {
-                        let d = self.particles.pos[ji] - p;
+                        let d = particles[ji].pos - p.pos;
                         if d.length_squared() < G2 {
-                            self.neighbors.push(ji);
+                            neighbors.push(ji);
                         }
-                        j = self.grid.next[ji];
+                        j = grid.next[ji];
                     }
                 }
             }
-        }
-        self.first_neighbor[self.num_particles] = self.neighbors.len();
+        });
+        self.first_neighbor[self.particles.len()] = self.neighbors.len();
     }
 
     fn solve_boundaries(&mut self) {
         const MIN_X: f32 = WINDOW_WIDTH as f32 * 0.5 / DRAW_SCALE; // TODO move
-        for i in 0..self.num_particles {
-            let p = &mut self.particles.pos[i];
+        let bounds = &self.boundaries;
+        self.particles.iter_mut().for_each(|p| {
+            let p = &mut p.pos;
 
             // ground
             p.y = clamp_min(p.y, 0.0);
@@ -245,7 +223,7 @@ impl State {
             p.x = clamp(p.x, -MIN_X, MIN_X);
 
             // boundary columns
-            for b in self.boundaries {
+            for b in bounds {
                 if p.x < b.x || p.x > b.y || p.y < b.z || p.y > b.w {
                     continue;
                 }
@@ -268,12 +246,14 @@ impl State {
                     p.y += d.y;
                 }
             }
-        }
+        });
     }
 
     fn solve_fluid(&mut self) {
-        for i in 0..self.num_particles {
-            let p = self.particles.pos[i];
+        // TODO: can we get rid of clone?
+        let particles = &self.particles.clone();
+        particles.iter().enumerate().for_each(|(i, p)| {
+            let p = p.pos;
             let first = self.first_neighbor[i];
             let num_neighbors = self.first_neighbor[i + 1] - first;
 
@@ -282,7 +262,7 @@ impl State {
             let mut grad_i = Vec2::ZERO;
             for j in 0..num_neighbors {
                 let id = self.neighbors[first + j];
-                let mut n = self.particles.pos[id] - p;
+                let mut n = self.particles[id].pos - p;
                 let r = n.length();
                 // normalize
                 if r > 0.0 {
@@ -304,21 +284,22 @@ impl State {
             sum_grad2 += grad_i.length_squared();
             let c = rho / REST_DENSITY - 1.0;
             if UNILATERAL && c < 0.0 {
-                continue;
+                return;
             }
 
             let lambda = -c / (sum_grad2 + 0.0001);
             for j in 0..num_neighbors {
                 let id = self.neighbors[first + j];
                 if id == i {
-                    self.particles.pos[id] += lambda * grad_i
+                    self.particles[id].pos += lambda * grad_i
                 } else {
-                    self.particles.pos[id] += lambda * self.grads[j];
+                    self.particles[id].pos += lambda * self.grads[j];
                 }
             }
-        }
+        });
     }
 
+    /*
     #[inline]
     fn apply_viscosity(&mut self, i: usize) {
         let first = self.first_neighbor[i];
@@ -335,4 +316,5 @@ impl State {
         let delta = avg_vel - self.particles.vel[i];
         self.particles.vel[i] += VISCOSITY * delta;
     }
+    */
 }
