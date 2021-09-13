@@ -13,17 +13,17 @@ crate-type = ["cdylib"]
 
 [dependencies]
 cgmath = "0.18.0"
-solver = {path="solver"}
-js-sys = {version = "0.3.53"}
-wasm-bindgen = {version = "0.2.76" }
-web-sys = {version = "0.3.53", features = [
+solver = { path = "solver" }
+js-sys = { version = "0.3.53" }
+wasm-bindgen = { version = "0.2.76" }
+web-sys = { version = "0.3.53", features = [
   'HtmlCanvasElement',
   'WebGlBuffer',
-  'WebGl2RenderingContext',
+  'WebGlRenderingContext',
   'WebGlUniformLocation',
   'WebGlProgram',
   'WebGlShader',
-]}
+] }
 
 [profile.release]
 lto = "fat"

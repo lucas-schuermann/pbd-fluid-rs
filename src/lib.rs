@@ -9,7 +9,7 @@
 use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
+use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
@@ -20,7 +20,7 @@ const POINT_SIZE: f32 = 3.0;
 
 #[wasm_bindgen]
 pub struct Simulation {
-    context: WebGl2RenderingContext,
+    context: WebGlRenderingContext,
     state: solver::State,
 }
 
@@ -83,27 +83,27 @@ impl Simulation {
             let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
 
             self.context.buffer_sub_data_with_i32_and_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
+                WebGlRenderingContext::ARRAY_BUFFER,
                 0,
                 &positions_array_buf_view,
             );
         }
 
         let vert_count = self.state.particles.len() as i32;
-        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         self.context
-            .draw_arrays(WebGl2RenderingContext::POINTS, 0, vert_count);
+            .draw_arrays(WebGlRenderingContext::POINTS, 0, vert_count);
     }
 }
 
-fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGl2RenderingContext, JsValue> {
+fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingContext, JsValue> {
     // set up canvas and webgl context handle
     canvas.set_width(solver::WINDOW_WIDTH);
     canvas.set_height(solver::WINDOW_HEIGHT);
     let context = canvas
-        .get_context("webgl2")?
+        .get_context("webgl")?
         .unwrap()
-        .dyn_into::<WebGl2RenderingContext>()?;
+        .dyn_into::<WebGlRenderingContext>()?;
 
     context.viewport(
         0,
@@ -115,11 +115,11 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGl2RenderingCont
 
     let vert_shader = compile_shader(
         &context,
-        WebGl2RenderingContext::VERTEX_SHADER,
+        WebGlRenderingContext::VERTEX_SHADER,
         format!(
-            r##"#version 300 es
+            r##"
         uniform mat4 matrix;
-        in vec2 position;
+        attribute vec2 position;
         void main() {{
             gl_PointSize = {:.1};
             gl_Position = matrix * vec4(position, 0.0, 1.0);
@@ -132,12 +132,11 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGl2RenderingCont
 
     let frag_shader = compile_shader(
         &context,
-        WebGl2RenderingContext::FRAGMENT_SHADER,
-        r##"#version 300 es
-        precision highp float;
-        out vec4 outColor;
+        WebGlRenderingContext::FRAGMENT_SHADER,
+        r##"
+        precision mediump float;
         void main() {{
-            outColor = vec4(0.2, 0.6, 1.0, 1.0);
+            gl_FragColor = vec4(0.2, 0.6, 1.0, 1.0);
         }}
         "##,
     )?;
@@ -166,8 +165,8 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGl2RenderingCont
     // attributes
     let position_attribute_location = context.get_attrib_location(&program, "position");
     let buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
-    context.vertex_attrib_pointer_with_i32(0, 2, WebGl2RenderingContext::FLOAT, false, 0, 0);
+    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+    context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
     context.enable_vertex_attrib_array(position_attribute_location as u32);
 
     // allocate vertex buffer initial state
@@ -176,16 +175,16 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGl2RenderingCont
         let positions_array_buf_view = js_sys::Float32Array::view(&zeroed);
 
         context.buffer_data_with_array_buffer_view(
-            WebGl2RenderingContext::ARRAY_BUFFER,
+            WebGlRenderingContext::ARRAY_BUFFER,
             &positions_array_buf_view,
-            WebGl2RenderingContext::DYNAMIC_DRAW,
+            WebGlRenderingContext::DYNAMIC_DRAW,
         );
     }
     Ok(context)
 }
 
 fn compile_shader(
-    context: &WebGl2RenderingContext,
+    context: &WebGlRenderingContext,
     shader_type: u32,
     source: &str,
 ) -> Result<WebGlShader, String> {
@@ -196,7 +195,7 @@ fn compile_shader(
     context.compile_shader(&shader);
 
     if context
-        .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
+        .get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS)
         .as_bool()
         .unwrap_or(false)
     {
@@ -209,7 +208,7 @@ fn compile_shader(
 }
 
 fn link_program(
-    context: &WebGl2RenderingContext,
+    context: &WebGlRenderingContext,
     vert_shader: &WebGlShader,
     frag_shader: &WebGlShader,
 ) -> Result<WebGlProgram, String> {
@@ -222,7 +221,7 @@ fn link_program(
     context.link_program(&program);
 
     if context
-        .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
+        .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
         .as_bool()
         .unwrap_or(false)
     {

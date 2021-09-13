@@ -3,8 +3,8 @@ use glam::{vec4, Vec2, Vec4};
 use std::f32::consts::PI;
 
 pub const G: Vec2 = glam::const_vec2!([0.0, -10.0]);
-pub const WINDOW_WIDTH: u32 = 1280;
-pub const WINDOW_HEIGHT: u32 = 800;
+pub const WINDOW_WIDTH: u32 = 900;
+pub const WINDOW_HEIGHT: u32 = 600;
 
 // TODO some drawing
 pub const DRAW_ORIG: Vec2 =
