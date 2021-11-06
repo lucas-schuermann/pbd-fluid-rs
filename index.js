@@ -1,26 +1,28 @@
 import * as Stats from 'stats.js';
 
 import('./pkg').then(rust_wasm => {
+    const $ = (id) => document.getElementById(id);
+
     // attach perf stats window
     const stats = new Stats();
     stats.dom.style.position = 'absolute';
     stats.showPanel(1); // ms per frame
-    document.getElementById('stats').appendChild(stats.dom);
+    $('stats').appendChild(stats.dom);
 
     // import wasm package and initialize simulation
     const sim = new rust_wasm.Simulation(canvas);
 
     // bind interactivity
-    const setInfo = () => document.getElementById('info').innerText = `Particles: ${sim.get_num_particles()}`;
+    const setInfo = () => $('count').innerText = sim.get_num_particles();
     setInfo();
-    document.getElementById('block').addEventListener('click', () => {
+    $('block').onclick = () => {
         sim.add_block();
         setInfo();
-    });
-    document.getElementById('reset').addEventListener('click', () => {
+    };
+    $('reset').onclick = () => {
         sim.reset();
         setInfo();
-    });
+    };
 
     // main loop
     const step = () => {

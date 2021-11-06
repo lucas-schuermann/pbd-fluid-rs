@@ -9,7 +9,7 @@ const DAM_PARTICLES_Y: usize = 1000;
 const MAX_BLOCKS: usize = 50;
 const BLOCK_PARTICLES: usize = 500;
 const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change
-const POINT_SIZE: f32 = 7.0;
+const POINT_SIZE: f32 = 5.0;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -117,10 +117,10 @@ fn main() -> Result<(), String> {
 
         // draw
         let data: Vec<Vertex> = sim
-            .particles
+            .get_positions()
             .iter()
             .map(|p| {
-                let mut pp = p.pos;
+                let mut pp = *p;
                 pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
                 pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
                 Vertex {

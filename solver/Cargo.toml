@@ -7,7 +7,8 @@ publish = false
 
 [dependencies]
 cgmath = "0.18.0"
-glam = "0.17.3"
+glam = "0.20.0"
+rayon = "*"
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
