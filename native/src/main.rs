@@ -65,6 +65,43 @@ fn main() -> Result<(), String> {
     };
     let indices = index::NoIndices(index::PrimitiveType::Points);
 
+    let boundaries: Vec<Vertex> = sim
+        .get_boundaries()
+        .iter()
+        .map(|p| {
+            // specified as [x0, x0+width, y0, y0+height]
+            let x0 = solver::DRAW_ORIG.x + p[0] * solver::DRAW_SCALE; // x0
+            let y0 = solver::DRAW_ORIG.y - p[2] * solver::DRAW_SCALE;
+            let width = (p[1] - p[0]) * solver::DRAW_SCALE;
+            let height = (p[3] - p[2]) * solver::DRAW_SCALE;
+            [
+                Vertex { position: [x0, y0] },
+                Vertex {
+                    position: [x0 + width, y0],
+                },
+                Vertex {
+                    position: [x0 + width, y0 - height],
+                },
+                Vertex { position: [x0, y0] },
+                Vertex {
+                    position: [x0, y0 - height],
+                },
+                Vertex {
+                    position: [x0 + width, y0 - height],
+                },
+            ]
+        })
+        .flatten()
+        .collect();
+    let boundary_buffer = glium::VertexBuffer::empty_immutable(&display, 12).unwrap(); //TODO fix unwrap, var for 12
+    let boundary_indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+    let boundary_params = glium::DrawParameters {
+        polygon_mode: glium::PolygonMode::Fill,
+        color_mask: (false, true, true, true),
+        ..Default::default()
+    };
+    boundary_buffer.write(&boundaries);
+
     // preallocate vertex buffer
     let vertex_buffer = glium::VertexBuffer::empty_dynamic(&display, MAX_PARTICLES * 2).unwrap();
     let draw_params = glium::DrawParameters {
@@ -115,7 +152,21 @@ fn main() -> Result<(), String> {
 
         sim.update();
 
-        // draw
+        let mut target = display.draw();
+        target.clear_color(0.9, 0.9, 0.9, 1.0);
+
+        // draw boundaries
+        target
+            .draw(
+                &boundary_buffer,
+                &boundary_indices,
+                &program,
+                &uniforms,
+                &boundary_params,
+            )
+            .unwrap();
+
+        // draw particles
         let data: Vec<Vertex> = sim
             .get_positions()
             .iter()
@@ -130,8 +181,6 @@ fn main() -> Result<(), String> {
             .collect();
         vertex_buffer.slice(0..data.len()).unwrap().write(&data);
 
-        let mut target = display.draw();
-        target.clear_color(0.9, 0.9, 0.9, 1.0);
         target
             .draw(&vertex_buffer, &indices, &program, &uniforms, &draw_params)
             .unwrap();

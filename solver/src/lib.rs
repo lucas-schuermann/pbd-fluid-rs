@@ -6,8 +6,7 @@ pub const G: Vec2 = glam::const_vec2!([0.0, -10.0]);
 pub const WINDOW_WIDTH: u32 = 800;
 pub const WINDOW_HEIGHT: u32 = 600;
 
-pub const DRAW_ORIG: Vec2 =
-    glam::const_vec2!([WINDOW_WIDTH as f32 / 2.0, WINDOW_HEIGHT as f32 - 20.0]);
+pub const DRAW_ORIG: Vec2 = glam::const_vec2!([WINDOW_WIDTH as f32 / 2.0, WINDOW_HEIGHT as f32]);
 pub const DRAW_SCALE: f32 = 200.0;
 
 // boundaries
@@ -17,12 +16,10 @@ const MIN_X: f32 = WINDOW_WIDTH as f32 * 0.5 / DRAW_SCALE;
 
 const PARTICLE_RADIUS: f32 = 0.01;
 const UNILATERAL: bool = true;
-const VISCOSITY: f32 = 0.0;
+const DEFAULT_VISCOSITY: f32 = 0.0;
 const TIME_STEP: f32 = 0.01;
-const NUM_SOLVER_SUBSTEPS: usize = 10;
-const DT: f32 = TIME_STEP / NUM_SOLVER_SUBSTEPS as f32;
+const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 10;
 const MAX_PARTICLES: usize = 10_000;
-
 const PARTICLE_DIAMETER: f32 = 2.0 * PARTICLE_RADIUS;
 const REST_DENSITY: f32 = 1.0 / (PARTICLE_DIAMETER * PARTICLE_DIAMETER);
 const H: f32 = 3.0 * PARTICLE_RADIUS; // kernel radius
@@ -63,7 +60,7 @@ impl Particles {
 }
 
 impl Grid {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             size: HASH_SIZE,
             first: vec![None; HASH_SIZE],
@@ -75,14 +72,14 @@ impl Grid {
     }
 
     #[inline]
-    pub fn map(&self, p: Vec2) -> (i32, i32) {
+    fn map(&self, p: Vec2) -> (i32, i32) {
         let gx = f32::floor((p.x - self.origin.x) * INV_GRID_SPACING) as i32;
         let gy = f32::floor((p.y - self.origin.y) * INV_GRID_SPACING) as i32;
         (gx, gy)
     }
 
     #[inline]
-    pub fn hash(&self, x: i32, y: i32) -> usize {
+    fn hash(&self, x: i32, y: i32) -> usize {
         (i32::abs(x.wrapping_mul(92837111i32) ^ y.wrapping_mul(689287499i32)) % (self.size as i32))
             as usize
     }
@@ -93,16 +90,20 @@ pub struct State {
     particles: Particles,
     grads: Vec<Vec2>,
     pub num_particles: usize,
-    boundaries: [Vec4; 2],
+    boundaries: Vec<Vec4>,
     grid: Grid,
     first_neighbor: Vec<usize>,
     neighbors: Vec<usize>,
+
+    viscosity: f32,
+    num_substeps: usize,
+    dt: f32,
 }
 
 impl State {
     pub fn new() -> Self {
-        // specified as [left, right, bottom, top]
-        let boundaries = [
+        // specified as [x0, x0+width, y0, y0+height]
+        let boundaries = vec![
             vec4(-WIDTH * 0.5 - 0.1, -WIDTH * 0.5, -0.01, HEIGHT), // left column
             vec4(WIDTH * 0.5, WIDTH * 0.5 + 0.1, -0.01, HEIGHT),   // right column
         ];
@@ -114,16 +115,36 @@ impl State {
             grid: Grid::new(),
             first_neighbor: vec![0; MAX_PARTICLES + 1],
             neighbors: Vec::with_capacity(MAX_PARTICLES * 10),
+            viscosity: DEFAULT_VISCOSITY,
+            num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            dt: TIME_STEP / DEFAULT_NUM_SOLVER_SUBSTEPS as f32,
         }
+    }
+
+    pub fn get_boundaries(&self) -> Vec<[f32; 4]> {
+        self.boundaries.iter().map(|b| b.to_array()).collect()
     }
 
     pub fn get_positions(&self) -> &[Vec2] {
         &self.particles.pos[0..self.num_particles]
     }
 
+    pub fn set_viscosity(&mut self, viscosity: f32) {
+        self.viscosity = viscosity;
+    }
+
+    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+        self.num_substeps = num_substeps;
+        self.dt = TIME_STEP / num_substeps as f32; // TODO
+    }
+
     pub fn clear(&mut self) {
+        for i in 0..self.num_particles {
+            self.particles.pos[i] = Vec2::ZERO;
+            self.particles.prev[i] = Vec2::ZERO;
+            self.particles.vel[i] = Vec2::ZERO;
+        }
         self.num_particles = 0;
-        // TODO
     }
 
     pub fn init_dam_break(&mut self, dam_particles_x: usize, dam_particles_y: usize) {
@@ -151,12 +172,12 @@ impl State {
     pub fn update(&mut self) {
         self.find_neighbors();
 
-        for _ in 0..NUM_SOLVER_SUBSTEPS {
+        for _ in 0..self.num_substeps {
             // predict
             for i in 0..self.num_particles {
-                self.particles.vel[i] += G * DT;
+                self.particles.vel[i] += G * self.dt;
                 self.particles.prev[i] = self.particles.pos[i];
-                self.particles.pos[i] += self.particles.vel[i] * DT;
+                self.particles.pos[i] += self.particles.vel[i] * self.dt;
             }
 
             // solve
@@ -172,7 +193,7 @@ impl State {
                     v *= MAX_VEL / vel;
                     self.particles.pos[i] = self.particles.prev[i] + v;
                 }
-                self.particles.vel[i] = v / DT;
+                self.particles.vel[i] = v / self.dt;
                 self.apply_viscosity(i);
             }
         }
@@ -229,7 +250,7 @@ impl State {
             p.x = clamp(p.x, -MIN_X, MIN_X);
 
             // boundary columns
-            for b in self.boundaries {
+            for b in &self.boundaries {
                 if p.x < b.x || p.x > b.y || p.y < b.z || p.y > b.w {
                     continue;
                 }
@@ -317,6 +338,6 @@ impl State {
         }
         avg_vel /= num_neighbors as f32;
         let delta = avg_vel - self.particles.vel[i];
-        self.particles.vel[i] += VISCOSITY * delta;
+        self.particles.vel[i] += self.viscosity * delta;
     }
 }

@@ -9,7 +9,7 @@
 use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader};
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
@@ -21,6 +21,8 @@ const POINT_SIZE: f32 = 3.0;
 #[wasm_bindgen]
 pub struct Simulation {
     context: WebGlRenderingContext,
+    position_buffer: WebGlBuffer,
+    boundary_buffer: WebGlBuffer,
     state: solver::State,
 }
 
@@ -28,15 +30,31 @@ pub struct Simulation {
 impl Simulation {
     #[wasm_bindgen(constructor)]
     pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Result<Simulation, JsValue> {
-        let context = init_webgl(canvas)?;
+        let (context, position_buffer, boundary_buffer) = init_webgl(canvas)?;
         let mut state = solver::State::new();
         state.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
-        Ok(Simulation { context, state })
+        generate_boundary_vertex_array(&context, &boundary_buffer, state.get_boundaries());
+        Ok(Simulation {
+            context,
+            position_buffer,
+            boundary_buffer,
+            state,
+        })
     }
 
     #[wasm_bindgen]
     pub fn get_num_particles(&self) -> usize {
         self.state.num_particles
+    }
+
+    #[wasm_bindgen]
+    pub fn set_viscosity(&mut self, viscosity: f32) {
+        self.state.set_viscosity(viscosity);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+        self.state.set_solver_substeps(num_substeps);
     }
 
     #[wasm_bindgen]
@@ -59,6 +77,24 @@ impl Simulation {
     }
 
     fn draw(&self) {
+        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+
+        /*
+        // lines for boundaries
+        self.context.bind_buffer(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            Some(&self.boundary_buffer),
+        );
+        let vert_count = 12;
+        self.context
+            .draw_arrays(WebGlRenderingContext::TRIANGLES, 0, vert_count);
+        */
+
+        // particles
+        self.context.bind_buffer(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            Some(&self.position_buffer),
+        );
         let vertices: Vec<f32> = self
             .state
             .get_positions()
@@ -90,13 +126,53 @@ impl Simulation {
         }
 
         let vert_count = self.state.num_particles as i32;
-        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         self.context
             .draw_arrays(WebGlRenderingContext::POINTS, 0, vert_count);
     }
 }
 
-fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingContext, JsValue> {
+fn generate_boundary_vertex_array(
+    context: &WebGlRenderingContext,
+    buffer: &WebGlBuffer,
+    boundaries: Vec<[f32; 4]>,
+) {
+    let boundaries: Vec<f32> = boundaries
+        .iter()
+        .map(|p| {
+            // specified as [x0, x0+width, y0, y0+height]
+            let x0 = solver::DRAW_ORIG.x + p[0] * solver::DRAW_SCALE; // x0
+            let y0 = solver::DRAW_ORIG.y - p[2] * solver::DRAW_SCALE;
+            let width = (p[1] - p[0]) * solver::DRAW_SCALE;
+            let height = (p[3] - p[2]) * solver::DRAW_SCALE;
+            [
+                x0,
+                y0,
+                x0 + width,
+                y0,
+                x0 + width,
+                y0 - height,
+                x0,
+                x0 - height,
+            ]
+        })
+        .flatten()
+        .collect();
+
+    unsafe {
+        let boundaries_array_buf_view = js_sys::Float32Array::view(&boundaries);
+
+        context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        context.buffer_data_with_array_buffer_view(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            &boundaries_array_buf_view,
+            WebGlRenderingContext::STATIC_DRAW,
+        );
+    }
+}
+
+fn init_webgl(
+    canvas: &web_sys::HtmlCanvasElement,
+) -> Result<(WebGlRenderingContext, WebGlBuffer, WebGlBuffer), JsValue> {
     // set up canvas and webgl context handle
     canvas.set_width(solver::WINDOW_WIDTH);
     canvas.set_height(solver::WINDOW_HEIGHT);
@@ -164,8 +240,13 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingConte
 
     // attributes
     let position_attribute_location = context.get_attrib_location(&program, "position");
-    let buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+    let boundary_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
+    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&boundary_buffer));
+    context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
+    context.enable_vertex_attrib_array(position_attribute_location as u32);
+
+    let position_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
+    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&position_buffer));
     context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
     context.enable_vertex_attrib_array(position_attribute_location as u32);
 
@@ -180,7 +261,7 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingConte
             WebGlRenderingContext::DYNAMIC_DRAW,
         );
     }
-    Ok(context)
+    Ok((context, position_buffer, boundary_buffer))
 }
 
 fn compile_shader(

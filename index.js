@@ -23,6 +23,12 @@ import('./pkg').then(rust_wasm => {
         sim.reset();
         setInfo();
     };
+    $('viscosity').oninput = (e) => {
+        sim.set_viscosity(e.target.value);
+    }
+    $('substeps').oninput = (e) => {
+        sim.set_solver_substeps(e.target.value);
+    }
 
     // main loop
     const step = () => {
