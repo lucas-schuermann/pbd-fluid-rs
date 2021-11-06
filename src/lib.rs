@@ -9,20 +9,20 @@
 use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
-const MAX_BLOCKS: usize = 50;
 const BLOCK_PARTICLES: usize = 500;
-const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change
+const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
+const MAX_BLOCKS: usize = (MAX_PARTICLES - DAM_PARTICLES_X * DAM_PARTICLES_Y) / BLOCK_PARTICLES;
 const POINT_SIZE: f32 = 3.0;
+const BOUNDARY_COLOR: [f32; 4] = [112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0]; // #708090
+const PARTICLE_COLOR: [f32; 4] = [65.0 / 255.0, 105.0 / 255.0, 1.0, 1.0]; // #4169E1
 
 #[wasm_bindgen]
 pub struct Simulation {
     context: WebGlRenderingContext,
-    position_buffer: WebGlBuffer,
-    boundary_buffer: WebGlBuffer,
     state: solver::State,
 }
 
@@ -30,16 +30,10 @@ pub struct Simulation {
 impl Simulation {
     #[wasm_bindgen(constructor)]
     pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Result<Simulation, JsValue> {
-        let (context, position_buffer, boundary_buffer) = init_webgl(canvas)?;
+        let context = init_webgl(canvas)?;
         let mut state = solver::State::new();
         state.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
-        generate_boundary_vertex_array(&context, &boundary_buffer, state.get_boundaries());
-        Ok(Simulation {
-            context,
-            position_buffer,
-            boundary_buffer,
-            state,
-        })
+        Ok(Simulation { context, state })
     }
 
     #[wasm_bindgen]
@@ -77,34 +71,11 @@ impl Simulation {
     }
 
     fn draw(&self) {
-        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-
-        /*
-        // lines for boundaries
-        self.context.bind_buffer(
-            WebGlRenderingContext::ARRAY_BUFFER,
-            Some(&self.boundary_buffer),
-        );
-        let vert_count = 12;
-        self.context
-            .draw_arrays(WebGlRenderingContext::TRIANGLES, 0, vert_count);
-        */
-
-        // particles
-        self.context.bind_buffer(
-            WebGlRenderingContext::ARRAY_BUFFER,
-            Some(&self.position_buffer),
-        );
         let vertices: Vec<f32> = self
             .state
             .get_positions()
             .iter()
-            .map(|p| {
-                let mut pp = *p;
-                pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
-                pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
-                pp.to_array()
-            })
+            .map(|p| p.to_array())
             .flatten()
             .collect();
         unsafe {
@@ -126,53 +97,13 @@ impl Simulation {
         }
 
         let vert_count = self.state.num_particles as i32;
+        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         self.context
             .draw_arrays(WebGlRenderingContext::POINTS, 0, vert_count);
     }
 }
 
-fn generate_boundary_vertex_array(
-    context: &WebGlRenderingContext,
-    buffer: &WebGlBuffer,
-    boundaries: Vec<[f32; 4]>,
-) {
-    let boundaries: Vec<f32> = boundaries
-        .iter()
-        .map(|p| {
-            // specified as [x0, x0+width, y0, y0+height]
-            let x0 = solver::DRAW_ORIG.x + p[0] * solver::DRAW_SCALE; // x0
-            let y0 = solver::DRAW_ORIG.y - p[2] * solver::DRAW_SCALE;
-            let width = (p[1] - p[0]) * solver::DRAW_SCALE;
-            let height = (p[3] - p[2]) * solver::DRAW_SCALE;
-            [
-                x0,
-                y0,
-                x0 + width,
-                y0,
-                x0 + width,
-                y0 - height,
-                x0,
-                x0 - height,
-            ]
-        })
-        .flatten()
-        .collect();
-
-    unsafe {
-        let boundaries_array_buf_view = js_sys::Float32Array::view(&boundaries);
-
-        context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
-        context.buffer_data_with_array_buffer_view(
-            WebGlRenderingContext::ARRAY_BUFFER,
-            &boundaries_array_buf_view,
-            WebGlRenderingContext::STATIC_DRAW,
-        );
-    }
-}
-
-fn init_webgl(
-    canvas: &web_sys::HtmlCanvasElement,
-) -> Result<(WebGlRenderingContext, WebGlBuffer, WebGlBuffer), JsValue> {
+fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingContext, JsValue> {
     // set up canvas and webgl context handle
     canvas.set_width(solver::WINDOW_WIDTH);
     canvas.set_height(solver::WINDOW_HEIGHT);
@@ -194,11 +125,12 @@ fn init_webgl(
         WebGlRenderingContext::VERTEX_SHADER,
         format!(
             r##"
-        uniform mat4 matrix;
+        uniform mat4 projection_matrix;
+        uniform mat4 view_matrix;
         attribute vec2 position;
         void main() {{
             gl_PointSize = {:.1};
-            gl_Position = matrix * vec4(position, 0.0, 1.0);
+            gl_Position = projection_matrix * view_matrix * vec4(position, 0.0, 1.0);
         }}
         "##,
             POINT_SIZE
@@ -211,8 +143,9 @@ fn init_webgl(
         WebGlRenderingContext::FRAGMENT_SHADER,
         r##"
         precision mediump float;
+        uniform vec4 draw_color;
         void main() {{
-            gl_FragColor = vec4(0.2, 0.6, 1.0, 1.0);
+            gl_FragColor = draw_color;
         }}
         "##,
     )?;
@@ -220,8 +153,8 @@ fn init_webgl(
     context.use_program(Some(&program));
 
     // uniforms
-    let uniform_location = context
-        .get_uniform_location(&program, "matrix")
+    let projection_uniform = context
+        .get_uniform_location(&program, "projection_matrix")
         .expect("Unable to get shader projection matrix uniform location");
     let ortho_matrix = cgmath::ortho(
         0.0,
@@ -233,20 +166,41 @@ fn init_webgl(
     );
     let ortho_matrix_flattened_ref: &[f32; 16] = ortho_matrix.as_ref();
     context.uniform_matrix4fv_with_f32_array(
-        Some(&uniform_location),
+        Some(&projection_uniform),
         false,
         ortho_matrix_flattened_ref,
     );
+    let view_uniform = context
+        .get_uniform_location(&program, "view_matrix")
+        .expect("Unable to get shader view matrix uniform location");
+    let view_matrix: [f32; 16] = [
+        solver::DRAW_SCALE,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -solver::DRAW_SCALE, // flip y coordinate from solver
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        solver::DRAW_SCALE,
+        0.0,
+        solver::DRAW_ORIG.x,
+        solver::DRAW_ORIG.y,
+        0.0,
+        1.0,
+    ];
+    context.uniform_matrix4fv_with_f32_array(Some(&view_uniform), false, &view_matrix);
+    let draw_color_uniform = context
+        .get_uniform_location(&program, "draw_color")
+        .expect("Unable to get fragment draw color uniform location");
+    context.uniform4fv_with_f32_array(Some(&draw_color_uniform), &PARTICLE_COLOR);
 
     // attributes
     let position_attribute_location = context.get_attrib_location(&program, "position");
-    let boundary_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&boundary_buffer));
-    context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
-    context.enable_vertex_attrib_array(position_attribute_location as u32);
-
-    let position_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&position_buffer));
+    let buffer = context.create_buffer().ok_or("Failed to create buffer")?;
+    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
     context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
     context.enable_vertex_attrib_array(position_attribute_location as u32);
 
@@ -261,7 +215,7 @@ fn init_webgl(
             WebGlRenderingContext::DYNAMIC_DRAW,
         );
     }
-    Ok((context, position_buffer, boundary_buffer))
+    Ok(context)
 }
 
 fn compile_shader(

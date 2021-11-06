@@ -66,7 +66,7 @@ fn main() -> Result<(), String> {
     .into();
     let view_matrix: [[f32; 4]; 4] = [
         [solver::DRAW_SCALE, 0.0, 0.0, 0.0],
-        [0.0, -solver::DRAW_SCALE, 0.0, 0.0],
+        [0.0, -solver::DRAW_SCALE, 0.0, 0.0], // flip y coordinate from solver
         [0.0, 0.0, solver::DRAW_SCALE, 0.0],
         [solver::DRAW_ORIG.x, solver::DRAW_ORIG.y, 0.0, 1.0],
     ];
