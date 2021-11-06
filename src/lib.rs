@@ -9,31 +9,40 @@
 use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{
+    WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader, WebGlUniformLocation,
+};
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
-const BLOCK_PARTICLES: usize = 500;
+const BLOCK_PARTICLES: usize = 400;
 const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
-const MAX_BLOCKS: usize = (MAX_PARTICLES - DAM_PARTICLES_X * DAM_PARTICLES_Y) / BLOCK_PARTICLES;
 const POINT_SIZE: f32 = 3.0;
 const BOUNDARY_COLOR: [f32; 4] = [112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0]; // #708090
 const PARTICLE_COLOR: [f32; 4] = [65.0 / 255.0, 105.0 / 255.0, 1.0, 1.0]; // #4169E1
 
 #[wasm_bindgen]
 pub struct Simulation {
-    context: WebGlRenderingContext,
+    renderer: RenderState,
     state: solver::State,
+}
+
+struct RenderState {
+    context: WebGlRenderingContext,
+    boundary_buffer: WebGlBuffer,
+    particle_buffer: WebGlBuffer,
+    draw_color_uniform: WebGlUniformLocation,
+    position_attrib_location: u32,
 }
 
 #[wasm_bindgen]
 impl Simulation {
     #[wasm_bindgen(constructor)]
     pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Result<Simulation, JsValue> {
-        let context = init_webgl(canvas)?;
         let mut state = solver::State::new();
         state.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
-        Ok(Simulation { context, state })
+        let renderer = init_webgl(canvas, state.get_boundaries())?;
+        Ok(Simulation { renderer, state })
     }
 
     #[wasm_bindgen]
@@ -59,9 +68,7 @@ impl Simulation {
 
     #[wasm_bindgen]
     pub fn add_block(&mut self) {
-        if self.get_num_particles() < MAX_PARTICLES - BLOCK_PARTICLES {
-            self.state.init_block(BLOCK_PARTICLES);
-        }
+        self.state.init_block(BLOCK_PARTICLES);
     }
 
     #[wasm_bindgen]
@@ -71,6 +78,30 @@ impl Simulation {
     }
 
     fn draw(&self) {
+        self.renderer
+            .context
+            .clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+
+        // draw boundaries
+        set_buffers_and_attributes(
+            &self.renderer.context,
+            &self.renderer.boundary_buffer,
+            self.renderer.position_attrib_location,
+        );
+        self.renderer
+            .context
+            .uniform4fv_with_f32_array(Some(&self.renderer.draw_color_uniform), &BOUNDARY_COLOR);
+        self.renderer
+            .context
+            .draw_arrays(WebGlRenderingContext::TRIANGLES, 0, 12);
+
+        // draw particles
+        // TODO move this into some helper renderer class
+        set_buffers_and_attributes(
+            &self.renderer.context,
+            &self.renderer.particle_buffer,
+            self.renderer.position_attrib_location,
+        );
         let vertices: Vec<f32> = self
             .state
             .get_positions()
@@ -89,21 +120,29 @@ impl Simulation {
             // do any memory allocations before it's dropped.
             let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
 
-            self.context.buffer_sub_data_with_i32_and_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
-                0,
-                &positions_array_buf_view,
-            );
+            self.renderer
+                .context
+                .buffer_sub_data_with_i32_and_array_buffer_view(
+                    WebGlRenderingContext::ARRAY_BUFFER,
+                    0,
+                    &positions_array_buf_view,
+                );
         }
-
-        let vert_count = self.state.num_particles as i32;
-        self.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-        self.context
-            .draw_arrays(WebGlRenderingContext::POINTS, 0, vert_count);
+        self.renderer
+            .context
+            .uniform4fv_with_f32_array(Some(&self.renderer.draw_color_uniform), &PARTICLE_COLOR);
+        self.renderer.context.draw_arrays(
+            WebGlRenderingContext::POINTS,
+            0,
+            self.state.num_particles as i32,
+        );
     }
 }
 
-fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingContext, JsValue> {
+fn init_webgl(
+    canvas: &web_sys::HtmlCanvasElement,
+    boundaries: Vec<[f32; 4]>,
+) -> Result<RenderState, JsValue> {
     // set up canvas and webgl context handle
     canvas.set_width(solver::WINDOW_WIDTH);
     canvas.set_height(solver::WINDOW_HEIGHT);
@@ -152,7 +191,7 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingConte
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     context.use_program(Some(&program));
 
-    // uniforms
+    // set shader matrix uniforms
     let projection_uniform = context
         .get_uniform_location(&program, "projection_matrix")
         .expect("Unable to get shader projection matrix uniform location");
@@ -195,16 +234,45 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingConte
     let draw_color_uniform = context
         .get_uniform_location(&program, "draw_color")
         .expect("Unable to get fragment draw color uniform location");
-    context.uniform4fv_with_f32_array(Some(&draw_color_uniform), &PARTICLE_COLOR);
+    let position_attrib_location = context.get_attrib_location(&program, "position") as u32;
 
-    // attributes
-    let position_attribute_location = context.get_attrib_location(&program, "position");
-    let buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
-    context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
-    context.enable_vertex_attrib_array(position_attribute_location as u32);
+    // prepopulate boundary geometry
+    let boundaries: Vec<f32> = boundaries
+        .iter()
+        .map(|p| {
+            // specified as [x0, x0+width, y0, y0+height]
+            let x = p[0];
+            let y = p[2];
+            let w = p[1] - p[0];
+            let h = p[3] - p[2];
+            // form a rectangle using two triangles, three vertices each
+            [
+                [x, y],
+                [x + w, y],
+                [x + w, y + h],
+                [x, y],
+                [x, y + h],
+                [x + w, y + h],
+            ]
+        })
+        .flatten()
+        .flatten()
+        .collect();
+    let boundary_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
+    set_buffers_and_attributes(&context, &boundary_buffer, position_attrib_location);
+    unsafe {
+        let boundaries_array_buf_view = js_sys::Float32Array::view(&boundaries);
 
-    // allocate vertex buffer initial state
+        context.buffer_data_with_array_buffer_view(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            &boundaries_array_buf_view,
+            WebGlRenderingContext::STATIC_DRAW,
+        );
+    }
+
+    // preallocate particle vertex buffer
+    let particle_buffer = context.create_buffer().ok_or("Failed to create buffer")?;
+    set_buffers_and_attributes(&context, &particle_buffer, position_attrib_location);
     let zeroed = vec![0.0; MAX_PARTICLES * 2];
     unsafe {
         let positions_array_buf_view = js_sys::Float32Array::view(&zeroed);
@@ -215,7 +283,24 @@ fn init_webgl(canvas: &web_sys::HtmlCanvasElement) -> Result<WebGlRenderingConte
             WebGlRenderingContext::DYNAMIC_DRAW,
         );
     }
-    Ok(context)
+
+    Ok(RenderState {
+        context,
+        position_attrib_location,
+        boundary_buffer,
+        particle_buffer,
+        draw_color_uniform,
+    })
+}
+
+fn set_buffers_and_attributes(
+    context: &WebGlRenderingContext,
+    buffer: &WebGlBuffer,
+    attrib_location: u32,
+) {
+    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(buffer));
+    context.vertex_attrib_pointer_with_i32(0, 2, WebGlRenderingContext::FLOAT, false, 0, 0);
+    context.enable_vertex_attrib_array(attrib_location);
 }
 
 fn compile_shader(

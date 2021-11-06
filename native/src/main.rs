@@ -8,7 +8,6 @@ const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
 const BLOCK_PARTICLES: usize = 500;
 const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
-const MAX_BLOCKS: usize = (MAX_PARTICLES - DAM_PARTICLES_X * DAM_PARTICLES_Y) / BLOCK_PARTICLES;
 const POINT_SIZE: f32 = 5.0;
 const BOUNDARY_COLOR: [f32; 4] = [112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0]; // #708090
 const PARTICLE_COLOR: [f32; 4] = [65.0 / 255.0, 105.0 / 255.0, 1.0, 1.0]; // #4169E1
@@ -76,7 +75,7 @@ fn main() -> Result<(), String> {
         .get_boundaries()
         .iter()
         .map(|p| {
-            // p is specified as [x0, x0+width, y0, y0+height]
+            // specified as [x0, x0+width, y0, y0+height]
             let x = p[0];
             let y = p[2];
             let w = p[1] - p[0];
@@ -201,7 +200,7 @@ fn main() -> Result<(), String> {
             .write(&data);
         target
             .draw(
-                &partcile_vertex_buffer,
+                partcile_vertex_buffer.slice(0..sim.num_particles).unwrap(),
                 &partcile_indices,
                 &program,
                 &particle_uniforms,

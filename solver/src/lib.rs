@@ -2,7 +2,6 @@ use cgmath::num_traits::{clamp, clamp_min};
 use glam::{vec4, Vec2, Vec4};
 use std::f32::consts::PI;
 
-pub const G: Vec2 = glam::const_vec2!([0.0, -10.0]);
 pub const WINDOW_WIDTH: u32 = 800;
 pub const WINDOW_HEIGHT: u32 = 600;
 
@@ -14,17 +13,18 @@ pub const WIDTH: f32 = 1.0;
 pub const HEIGHT: f32 = 2.0;
 const MIN_X: f32 = WINDOW_WIDTH as f32 * 0.5 / DRAW_SCALE;
 
+pub const MAX_PARTICLES: usize = 20_000;
+const G: Vec2 = glam::const_vec2!([0.0, -10.0]);
 const PARTICLE_RADIUS: f32 = 0.01;
 const UNILATERAL: bool = true;
 const DEFAULT_VISCOSITY: f32 = 0.0;
 const TIME_STEP: f32 = 0.01;
 const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 10;
-pub const MAX_PARTICLES: usize = 20_000;
 const PARTICLE_DIAMETER: f32 = 2.0 * PARTICLE_RADIUS;
 const REST_DENSITY: f32 = 1.0 / (PARTICLE_DIAMETER * PARTICLE_DIAMETER);
 const H: f32 = 3.0 * PARTICLE_RADIUS; // kernel radius
 const H2: f32 = H * H;
-const KERNEL_SCALE: f32 = 4.0 / (PI * H2 * H2 * H2 * H2); // 2d poly6 (SPH based shallow water simulation
+const KERNEL_SCALE: f32 = 4.0 / (PI * H2 * H2 * H2 * H2); // 2d poly6 (SPH based shallow water simulation)
 const MAX_VEL: f32 = 0.4 * PARTICLE_RADIUS;
 
 const HASH_SIZE: usize = 370111;
@@ -135,7 +135,7 @@ impl State {
 
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32; // TODO
+        self.dt = TIME_STEP / num_substeps as f32;
     }
 
     pub fn clear(&mut self) {
@@ -147,15 +147,16 @@ impl State {
         self.num_particles = 0;
     }
 
-    pub fn init_dam_break(&mut self, dam_particles_x: usize, dam_particles_y: usize) {
+    /// Returns `false` if new particles would overflow `MAX_PARTICLES`
+    pub fn init_dam_break(&mut self, dam_particles_x: usize, dam_particles_y: usize) -> bool {
         let fluid_orig = Vec2::new(-0.3, 1.8); // (left, bottom)
         let eps = 0.00001;
 
-        if dam_particles_x * dam_particles_y > MAX_PARTICLES {
-            return; // TODO error
+        if self.num_particles + dam_particles_x * dam_particles_y > MAX_PARTICLES {
+            return false;
         }
-        self.num_particles = dam_particles_x * dam_particles_y;
-        let mut i = 0;
+
+        let mut i = self.num_particles;
         for y in 0..dam_particles_y {
             for x in 0..dam_particles_x {
                 self.particles.pos[i].x = fluid_orig.x + x as f32 * PARTICLE_DIAMETER;
@@ -165,9 +166,33 @@ impl State {
                 i += 1;
             }
         }
+        self.num_particles += dam_particles_x * dam_particles_y;
+        true
     }
 
-    pub fn init_block(&mut self, _block_max_particles: usize) {}
+    /// Returns `false` if new particles would overflow `MAX_PARTICLES`
+    pub fn init_block(&mut self, block_max_particles: usize) -> bool {
+        let fluid_orig = Vec2::new(0.0, 2.5); // (left, bottom)
+        let eps = 0.00001;
+
+        if self.num_particles + block_max_particles > MAX_PARTICLES {
+            return false;
+        }
+
+        let bound = f32::sqrt(block_max_particles as f32) as usize;
+        let mut i = self.num_particles;
+        for y in 0..bound {
+            for x in 0..bound {
+                self.particles.pos[i].x = fluid_orig.x + x as f32 * PARTICLE_DIAMETER;
+                self.particles.pos[i].x += eps * (y % 2) as f32;
+                self.particles.pos[i].y = fluid_orig.y + y as f32 * PARTICLE_DIAMETER;
+                self.particles.vel[i] = Vec2::ZERO;
+                i += 1;
+            }
+        }
+        self.num_particles += block_max_particles;
+        true
+    }
 
     pub fn update(&mut self) {
         self.find_neighbors();
