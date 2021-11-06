@@ -6,10 +6,12 @@ use solver;
 
 const DAM_PARTICLES_X: usize = 10;
 const DAM_PARTICLES_Y: usize = 1000;
-const MAX_BLOCKS: usize = 50;
 const BLOCK_PARTICLES: usize = 500;
-const MAX_PARTICLES: usize = DAM_PARTICLES_X * DAM_PARTICLES_Y + MAX_BLOCKS * BLOCK_PARTICLES; // TODO change
+const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
+const MAX_BLOCKS: usize = (MAX_PARTICLES - DAM_PARTICLES_X * DAM_PARTICLES_Y) / BLOCK_PARTICLES;
 const POINT_SIZE: f32 = 5.0;
+const BOUNDARY_COLOR: [f32; 4] = [112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0]; // #708090
+const PARTICLE_COLOR: [f32; 4] = [65.0 / 255.0, 105.0 / 255.0, 1.0, 1.0]; // #4169E1
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -35,17 +37,19 @@ fn main() -> Result<(), String> {
 
     let vertex_shader_src = r#"
         #version 140
-        uniform mat4 matrix;
+        uniform mat4 projection_matrix;
+        uniform mat4 view_matrix;
         in vec2 position;
         void main() {
-            gl_Position = matrix * vec4(position, 0.0, 1.0);
+            gl_Position = projection_matrix *  view_matrix * vec4(position, 0.0, 1.0);
         }
     "#;
     let fragment_shader_src = r#"
         #version 140
+        uniform vec4 draw_color;
         out vec4 f_color;
         void main() {
-            f_color = vec4(0.2, 0.6, 1.0, 1.0);
+            f_color = draw_color;
         }
     "#;
     let program =
@@ -60,51 +64,68 @@ fn main() -> Result<(), String> {
         1.0,
     )
     .into();
-    let uniforms = uniform! {
-        matrix: ortho_matrix
-    };
-    let indices = index::NoIndices(index::PrimitiveType::Points);
+    let view_matrix: [[f32; 4]; 4] = [
+        [solver::DRAW_SCALE, 0.0, 0.0, 0.0],
+        [0.0, -solver::DRAW_SCALE, 0.0, 0.0],
+        [0.0, 0.0, solver::DRAW_SCALE, 0.0],
+        [solver::DRAW_ORIG.x, solver::DRAW_ORIG.y, 0.0, 1.0],
+    ];
 
+    // prepopulate boundary geometry and draw configuration
     let boundaries: Vec<Vertex> = sim
         .get_boundaries()
         .iter()
         .map(|p| {
-            // specified as [x0, x0+width, y0, y0+height]
-            let x0 = solver::DRAW_ORIG.x + p[0] * solver::DRAW_SCALE; // x0
-            let y0 = solver::DRAW_ORIG.y - p[2] * solver::DRAW_SCALE;
-            let width = (p[1] - p[0]) * solver::DRAW_SCALE;
-            let height = (p[3] - p[2]) * solver::DRAW_SCALE;
+            // p is specified as [x0, x0+width, y0, y0+height]
+            let x = p[0];
+            let y = p[2];
+            let w = p[1] - p[0];
+            let h = p[3] - p[2];
+            // form a rectangle using two triangles, three vertices each
             [
-                Vertex { position: [x0, y0] },
+                Vertex { position: [x, y] },
                 Vertex {
-                    position: [x0 + width, y0],
+                    position: [x + w, y],
                 },
                 Vertex {
-                    position: [x0 + width, y0 - height],
+                    position: [x + w, y + h],
                 },
-                Vertex { position: [x0, y0] },
+                Vertex { position: [x, y] },
                 Vertex {
-                    position: [x0, y0 - height],
+                    position: [x, y + h],
                 },
                 Vertex {
-                    position: [x0 + width, y0 - height],
+                    position: [x + w, y + h],
                 },
             ]
         })
         .flatten()
         .collect();
-    let boundary_buffer = glium::VertexBuffer::empty_immutable(&display, 12).unwrap(); //TODO fix unwrap, var for 12
+    let boundary_vertex_buffer =
+        glium::VertexBuffer::empty_immutable(&display, boundaries.len())
+            .map_err(|e| format!("Failed to create boundary vertex buffer: {}", e))?;
+    let boundary_uniforms = uniform! {
+        projection_matrix: ortho_matrix,
+        view_matrix: view_matrix,
+        draw_color: BOUNDARY_COLOR,
+    };
     let boundary_indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
-    let boundary_params = glium::DrawParameters {
+    let boundary_draw_params = glium::DrawParameters {
         polygon_mode: glium::PolygonMode::Fill,
-        color_mask: (false, true, true, true),
         ..Default::default()
     };
-    boundary_buffer.write(&boundaries);
+    boundary_vertex_buffer.write(&boundaries);
 
-    // preallocate vertex buffer
-    let vertex_buffer = glium::VertexBuffer::empty_dynamic(&display, MAX_PARTICLES * 2).unwrap();
-    let draw_params = glium::DrawParameters {
+    // preallocate particle vertex buffer
+    let partcile_vertex_buffer = glium::VertexBuffer::empty_dynamic(&display, MAX_PARTICLES * 2)
+        .map_err(|e| format!("Failed to create particle vertex buffer: {}", e))?;
+    let particle_uniforms = uniform! {
+        projection_matrix: ortho_matrix,
+        view_matrix: view_matrix,
+        draw_color: PARTICLE_COLOR,
+    };
+    let partcile_indices = index::NoIndices(index::PrimitiveType::Points);
+    let particle_draw_params = glium::DrawParameters {
         polygon_mode: glium::PolygonMode::Point,
         point_size: Some(POINT_SIZE),
         ..Default::default()
@@ -158,11 +179,11 @@ fn main() -> Result<(), String> {
         // draw boundaries
         target
             .draw(
-                &boundary_buffer,
+                &boundary_vertex_buffer,
                 &boundary_indices,
                 &program,
-                &uniforms,
-                &boundary_params,
+                &boundary_uniforms,
+                &boundary_draw_params,
             )
             .unwrap();
 
@@ -170,19 +191,22 @@ fn main() -> Result<(), String> {
         let data: Vec<Vertex> = sim
             .get_positions()
             .iter()
-            .map(|p| {
-                let mut pp = *p;
-                pp.x = solver::DRAW_ORIG.x + pp.x * solver::DRAW_SCALE;
-                pp.y = solver::DRAW_ORIG.y - pp.y * solver::DRAW_SCALE;
-                Vertex {
-                    position: pp.to_array(),
-                }
+            .map(|p| Vertex {
+                position: p.to_array(),
             })
             .collect();
-        vertex_buffer.slice(0..data.len()).unwrap().write(&data);
-
+        partcile_vertex_buffer
+            .slice(0..data.len())
+            .unwrap() // safe due to preallocated known length
+            .write(&data);
         target
-            .draw(&vertex_buffer, &indices, &program, &uniforms, &draw_params)
+            .draw(
+                &partcile_vertex_buffer,
+                &partcile_indices,
+                &program,
+                &particle_uniforms,
+                &particle_draw_params,
+            )
             .unwrap();
         target.finish().unwrap();
     });
