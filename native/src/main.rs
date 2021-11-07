@@ -23,6 +23,7 @@ fn main() -> Result<(), String> {
 
     let mut sim = solver::State::new();
     sim.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
+    info!("Initialized dam break with {} particles", sim.num_particles);
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let size: glutin::dpi::LogicalSize<u32> = (solver::WINDOW_WIDTH, solver::WINDOW_HEIGHT).into();
@@ -150,9 +151,17 @@ fn main() -> Result<(), String> {
                         sim.clear();
                         info!("Cleared simulation");
                         sim.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
+                        info!("Initialized dam break with {} particles", sim.num_particles);
                     }
                     (VirtualKeyCode::Space, ElementState::Pressed) => {
-                        sim.init_block(BLOCK_PARTICLES);
+                        if sim.init_block(BLOCK_PARTICLES) {
+                            info!(
+                                "Initialized block of {} particles, new total {}",
+                                BLOCK_PARTICLES, sim.num_particles
+                            );
+                        } else {
+                            info!("Max particles reached");
+                        }
                     }
                     (VirtualKeyCode::Escape, ElementState::Pressed) => {
                         *control_flow = glutin::event_loop::ControlFlow::Exit;

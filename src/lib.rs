@@ -95,7 +95,6 @@ impl Simulation {
             .draw_arrays(WebGlRenderingContext::TRIANGLES, 0, 12);
 
         // draw particles
-        // TODO move this into some helper renderer class
         set_buffers_and_attributes(
             &self.renderer.context,
             &self.renderer.particle_buffer,
