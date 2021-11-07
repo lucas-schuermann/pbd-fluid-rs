@@ -6,7 +6,6 @@
     rust_2018_idioms
 )]
 
-use solver;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{

@@ -79,7 +79,7 @@ impl Grid {
     }
 
     #[inline]
-    fn hash(&self, x: i32, y: i32) -> usize {
+    const fn hash(&self, x: i32, y: i32) -> usize {
         (i32::abs(x.wrapping_mul(92837111i32) ^ y.wrapping_mul(689287499i32)) % (self.size as i32))
             as usize
     }
