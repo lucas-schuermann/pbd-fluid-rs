@@ -1,8 +1,11 @@
 [package]
 name = "pbd-fluid-rs"
-version = "0.1.0"
+version = "0.2.0"
+repository = "https://github.com/cerrno/pcisph-rs"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
 edition = "2021"
+license = "MIT"
+readme = "README.md"
 publish = false
 
 [workspace]
@@ -12,11 +15,11 @@ members = ["native", "solver"]
 crate-type = ["cdylib"]
 
 [dependencies]
-cgmath = "0.18.0"
+cgmath = "0.18"
 solver = { path = "solver" }
-js-sys = { version = "0.3.53" }
-wasm-bindgen = { version = "0.2.76" }
-web-sys = { version = "0.3.53", features = [
+js-sys = { version = "0.3" }
+wasm-bindgen = { version = "0.2" }
+web-sys = { version = "0.3", features = [
   'HtmlCanvasElement',
   'WebGlBuffer',
   'WebGlRenderingContext',
@@ -28,7 +31,9 @@ web-sys = { version = "0.3.53", features = [
 [profile.release]
 lto = "fat"
 panic = "abort"
+strip = true      # strip all 
 codegen-units = 1
+debug = 0         # Set this to 1 or two for more useful backtraces or flamegraphs
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O3"]

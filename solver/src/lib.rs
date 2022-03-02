@@ -27,7 +27,7 @@ const H2: f32 = H * H;
 const KERNEL_SCALE: f32 = 4.0 / (PI * H2 * H2 * H2 * H2); // 2d poly6 (SPH based shallow water simulation)
 const MAX_VEL: f32 = 0.4 * PARTICLE_RADIUS;
 
-const HASH_SIZE: usize = 370111;
+const HASH_SIZE: usize = 370_111;
 const GRID_SPACING: f32 = H * 1.5;
 const G2: f32 = GRID_SPACING * GRID_SPACING;
 const INV_GRID_SPACING: f32 = 1.0 / GRID_SPACING;
@@ -80,8 +80,8 @@ impl Grid {
 
     #[inline]
     const fn hash(&self, x: i32, y: i32) -> usize {
-        (i32::abs(x.wrapping_mul(92837111i32) ^ y.wrapping_mul(689287499i32)) % (self.size as i32))
-            as usize
+        (i32::abs(x.wrapping_mul(92_837_111_i32) ^ y.wrapping_mul(689_287_499_i32))
+            % (self.size as i32)) as usize
     }
 }
 
@@ -100,7 +100,14 @@ pub struct State {
     dt: f32,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl State {
+    #[must_use]
     pub fn new() -> Self {
         // specified as [x0, x0+width, y0, y0+height]
         let boundaries = vec![
@@ -121,10 +128,12 @@ impl State {
         }
     }
 
+    #[must_use]
     pub fn get_boundaries(&self) -> Vec<[f32; 4]> {
-        self.boundaries.iter().map(|b| b.to_array()).collect()
+        self.boundaries.iter().map(Vec4::to_array).collect()
     }
 
+    #[must_use]
     pub fn get_positions(&self) -> &[Vec2] {
         &self.particles.pos[0..self.num_particles]
     }
@@ -341,7 +350,7 @@ impl State {
             for j in 0..num_neighbors {
                 let id = self.neighbors[first + j];
                 if id == i {
-                    self.particles.pos[id] += lambda * grad_i
+                    self.particles.pos[id] += lambda * grad_i;
                 } else {
                     self.particles.pos[id] += lambda * self.grads[j];
                 }
