@@ -35,7 +35,8 @@ import('./pkg').then(rust_wasm => {
     $('gui').appendChild(gui.domElement);
 
     // import wasm package and initialize simulation
-    const sim = new rust_wasm.Simulation(canvas);
+    const useDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const sim = new rust_wasm.Simulation(canvas, useDarkMode);
     setInfo();
 
     // main loop
