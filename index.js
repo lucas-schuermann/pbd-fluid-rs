@@ -30,8 +30,8 @@ import('./pkg').then(rust_wasm => {
     gui.add(props, 'particles').listen();
     gui.add(props, 'viscosity', 0, 0.75, 0.01).onChange((v) => sim.set_viscosity(v));
     gui.add(props, 'substeps', 5, 10, 1).onChange((v) => sim.set_solver_substeps(v));
-    gui.add(props, 'block').name("add block");
-    gui.add(props, 'reset').name("reset simulation");
+    gui.add(props, 'block').name('add block');
+    gui.add(props, 'reset').name('reset simulation');
     $('gui').appendChild(gui.domElement);
 
     // import wasm package and initialize simulation
