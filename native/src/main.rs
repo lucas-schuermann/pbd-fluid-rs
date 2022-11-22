@@ -1,7 +1,11 @@
+use std::borrow::Cow;
+
 use cgmath;
-use glium::{glutin, implement_vertex, index, uniform, Surface};
+use glam::Vec2;
+use glium::{glutin, implement_vertex, index, uniform, Surface, VertexFormat};
 use glutin::event::{ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode, WindowEvent};
 use log::info;
+
 use solver;
 
 const DAM_PARTICLES_X: usize = 10;
@@ -117,8 +121,23 @@ fn main() -> Result<(), String> {
     boundary_vertex_buffer.write(&boundaries);
 
     // preallocate particle vertex buffer
-    let partcile_vertex_buffer = glium::VertexBuffer::empty_dynamic(&display, MAX_PARTICLES * 2)
-        .map_err(|e| format!("Failed to create particle vertex buffer: {}", e))?;
+    let empty_buffer = vec![Vec2::ZERO; MAX_PARTICLES];
+    let bindings: VertexFormat = Cow::Owned(vec![(
+        Cow::Borrowed("position"),
+        2 * std::mem::size_of::<f32>(),
+        0,
+        glium::vertex::AttributeType::F32F32,
+        false,
+    )]);
+    let particle_vertex_buffer = unsafe {
+        glium::VertexBuffer::new_raw_dynamic(
+            &display,
+            &empty_buffer,
+            bindings,
+            2 * std::mem::size_of::<f32>(),
+        )
+        .map_err(|e| format!("Failed to create particle vertex buffer: {}", e))?
+    };
     let particle_uniforms = uniform! {
         projection_matrix: ortho_matrix,
         view_matrix: view_matrix,
@@ -148,6 +167,8 @@ fn main() -> Result<(), String> {
                     ..
                 } => match (virtual_code, state) {
                     (VirtualKeyCode::R, ElementState::Pressed) => {
+                        particle_vertex_buffer.invalidate();
+                        particle_vertex_buffer.write(&vec![Vec2::ZERO; MAX_PARTICLES]);
                         sim.clear();
                         info!("Cleared simulation");
                         sim.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
@@ -181,6 +202,11 @@ fn main() -> Result<(), String> {
 
         sim.update();
 
+        particle_vertex_buffer
+            .slice(0..sim.num_particles)
+            .unwrap()
+            .write(sim.get_positions()); // unwrap is safe due to preallocated known length
+
         let mut target = display.draw();
         target.clear_color(0.9, 0.9, 0.9, 1.0);
 
@@ -196,20 +222,9 @@ fn main() -> Result<(), String> {
             .unwrap();
 
         // draw particles
-        let data: Vec<Vertex> = sim
-            .get_positions()
-            .iter()
-            .map(|p| Vertex {
-                position: p.to_array(),
-            })
-            .collect();
-        partcile_vertex_buffer
-            .slice(0..data.len())
-            .unwrap() // safe due to preallocated known length
-            .write(&data);
         target
             .draw(
-                partcile_vertex_buffer.slice(0..sim.num_particles).unwrap(),
+                &particle_vertex_buffer,
                 &partcile_indices,
                 &program,
                 &particle_uniforms,

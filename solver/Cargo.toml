@@ -2,16 +2,15 @@
 name = "solver"
 version = "0.0.0"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
-cgmath = "0.18.0"
-glam = "0.20.0"
-rayon = "*"
+cgmath = { workspace = true }
+glam = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.3", features = ["html_reports"] }
+criterion = { workspace = true }
 
 [[bench]]
 name = "benchmark"
