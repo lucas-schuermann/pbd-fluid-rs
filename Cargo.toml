@@ -1,6 +1,6 @@
 [package]
 name = "pbd-fluid-rs"
-version = "0.2.0"
+version = "0.3.0"
 repository = "https://github.com/cerrno/pcisph-rs"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
 edition = "2021"
@@ -15,11 +15,23 @@ members = ["native", "solver"]
 crate-type = ["cdylib"]
 
 [dependencies]
-cgmath = "0.18"
+web-sys = { workspace = true }
+cgmath = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+
 solver = { path = "solver" }
-js-sys = { version = "0.3" }
-wasm-bindgen = { version = "0.2" }
-web-sys = { version = "0.3", features = [
+
+[workspace.dependencies]
+env_logger = "0.9.3"
+log = "0.4.17"
+glam = { version = "0.22.0", features = ["fast-math", "scalar-math"] }
+criterion = "0.4.0"
+glium = "0.32.1"
+cgmath = "0.18.0"
+js-sys = "0.3.60"
+wasm-bindgen = "0.2.83"
+web-sys = { version = "0.3.60", features = [
   'HtmlCanvasElement',
   'WebGlBuffer',
   'WebGlRenderingContext',

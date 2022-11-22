@@ -37,10 +37,13 @@ struct RenderState {
 #[wasm_bindgen]
 impl Simulation {
     #[wasm_bindgen(constructor)]
-    pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Result<Simulation, JsValue> {
+    pub fn new(
+        canvas: &web_sys::HtmlCanvasElement,
+        use_dark_colors: bool,
+    ) -> Result<Simulation, JsValue> {
         let mut state = solver::State::new();
         state.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
-        let renderer = init_webgl(canvas, state.get_boundaries())?;
+        let renderer = init_webgl(canvas, state.get_boundaries(), use_dark_colors)?;
         Ok(Simulation { renderer, state })
     }
 
@@ -100,13 +103,6 @@ impl Simulation {
             &self.renderer.particle_buffer,
             self.renderer.position_attrib_location,
         );
-        let vertices: Vec<f32> = self
-            .state
-            .get_positions()
-            .iter()
-            .map(|p| p.to_array())
-            .flatten()
-            .collect();
         unsafe {
             // Note that `Float32Array::view` is somewhat dangerous (hence the
             // `unsafe`!). This is creating a raw view into our module's
@@ -116,7 +112,11 @@ impl Simulation {
             //
             // As a result, after `Float32Array::view` we have to be very careful not to
             // do any memory allocations before it's dropped.
-            let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
+            let positions_f32_view = self.state.get_positions().as_ptr() as *const f32; // &[Vec2] -> *const Vec2 -> *const f32
+            let positions_array_buf_view = js_sys::Float32Array::view(std::slice::from_raw_parts(
+                positions_f32_view,
+                self.state.num_particles * 2,
+            ));
 
             self.renderer
                 .context
@@ -140,6 +140,7 @@ impl Simulation {
 fn init_webgl(
     canvas: &web_sys::HtmlCanvasElement,
     boundaries: Vec<[f32; 4]>,
+    use_dark_colors: bool,
 ) -> Result<RenderState, JsValue> {
     // set up canvas and webgl context handle
     canvas.set_width(solver::WINDOW_WIDTH);
@@ -155,7 +156,11 @@ fn init_webgl(
         solver::WINDOW_WIDTH as i32,
         solver::WINDOW_HEIGHT as i32,
     );
-    context.clear_color(0.9, 0.9, 0.9, 1.0);
+    if use_dark_colors {
+        context.clear_color(0.1, 0.1, 0.1, 1.0);
+    } else {
+        context.clear_color(0.9, 0.9, 0.9, 1.0);
+    }
 
     let vert_shader = compile_shader(
         &context,

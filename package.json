@@ -11,11 +11,12 @@
         "html-webpack-plugin": "^5.5",
         "text-encoding": "^0.7",
         "wasm-pack": "^0.10",
-        "webpack": "^5.73",
-        "webpack-cli": "^4.10",
-        "webpack-dev-server": "^4.9"
+        "webpack": "^5.75",
+        "webpack-cli": "^5.0",
+        "webpack-dev-server": "^4.11"
     },
     "dependencies": {
+        "dat.gui": "^0.7.9",
         "stats.js": "^0.17"
     }
 }
