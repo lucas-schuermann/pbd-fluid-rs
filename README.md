@@ -20,3 +20,6 @@ npm install
 npm run serve
 ```
 Then visit http://localhost:8080
+
+## License
+This project is distributed under the [MIT license](LICENSE.md).
