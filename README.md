@@ -16,7 +16,7 @@ Press `r` to reset simulation or `space` to add a block of particles
 # install dependencies
 npm install
 
-# Compile WASM, run webpack, and spawn a local server
+# compile to WASM, run webpack, and spawn a local server
 npm run serve
 ```
 Then visit http://localhost:8080
