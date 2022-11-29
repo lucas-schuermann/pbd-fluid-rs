@@ -72,14 +72,12 @@ impl Grid {
         }
     }
 
-    #[inline]
     fn map(&self, p: Vec2) -> (i32, i32) {
         let gx = f32::floor((p.x - self.origin.x) * INV_GRID_SPACING) as i32;
         let gy = f32::floor((p.y - self.origin.y) * INV_GRID_SPACING) as i32;
         (gx, gy)
     }
 
-    #[inline]
     const fn hash(&self, x: i32, y: i32) -> usize {
         (i32::abs(x.wrapping_mul(92_837_111_i32) ^ y.wrapping_mul(689_287_499_i32))
             % (self.size as i32)) as usize
@@ -359,7 +357,6 @@ impl State {
         }
     }
 
-    #[inline]
     fn apply_viscosity(&mut self, i: usize) {
         let first = self.first_neighbor[i];
         let num_neighbors = self.first_neighbor[i + 1] - first;

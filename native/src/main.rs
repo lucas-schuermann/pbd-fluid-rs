@@ -124,7 +124,7 @@ fn main() -> Result<(), String> {
     let empty_buffer = vec![Vec2::ZERO; MAX_PARTICLES];
     let bindings: VertexFormat = Cow::Owned(vec![(
         Cow::Borrowed("position"),
-        2 * std::mem::size_of::<f32>(),
+        0,
         0,
         glium::vertex::AttributeType::F32F32,
         false,

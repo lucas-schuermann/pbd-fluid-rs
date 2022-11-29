@@ -23,7 +23,7 @@ wasm-bindgen = { workspace = true }
 solver = { path = "solver" }
 
 [workspace.dependencies]
-env_logger = "0.9.3"
+env_logger = "0.10.0"
 log = "0.4.17"
 glam = { version = "0.22.0", features = ["fast-math", "scalar-math"] }
 criterion = "0.4.0"
