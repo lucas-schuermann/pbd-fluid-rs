@@ -1,12 +1,12 @@
 use std::f32::consts::PI;
 
 use cgmath::num_traits::{clamp, clamp_min};
-use glam::{vec4, Vec2, Vec4};
+use glam::{vec2, vec4, Vec2, Vec4};
 
 pub const WINDOW_WIDTH: u32 = 800;
 pub const WINDOW_HEIGHT: u32 = 600;
 
-pub const DRAW_ORIG: Vec2 = Vec2::from_array([WINDOW_WIDTH as f32 / 2.0, WINDOW_HEIGHT as f32]);
+pub const DRAW_ORIG: Vec2 = vec2(WINDOW_WIDTH as f32 / 2.0, WINDOW_HEIGHT as f32);
 pub const DRAW_SCALE: f32 = 200.0;
 
 // boundaries
@@ -15,7 +15,7 @@ pub const HEIGHT: f32 = 2.0;
 const MIN_X: f32 = WINDOW_WIDTH as f32 * 0.5 / DRAW_SCALE;
 
 pub const MAX_PARTICLES: usize = 20_000;
-const G: Vec2 = Vec2::from_array([0.0, -10.0]);
+const G: Vec2 = vec2(0.0, -10.0);
 const PARTICLE_RADIUS: f32 = 0.01;
 const UNILATERAL: bool = true;
 const DEFAULT_VISCOSITY: f32 = 0.0;
