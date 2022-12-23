@@ -5,6 +5,12 @@
 For a quick demo, please see https://cerrno.github.io/pbd-fluid-rs/. The WASM version of this project is deployed to Github Pages after building with Github Actions.
 
 ## Running
+### Package Dependencies
+```bash
+# debian/ubuntu
+apt install build-essential pkg-config cmake libfreetype6-dev libfontconfig1-dev
+```
+
 ### Native (cargo)
 ```bash
 RUST_LOG=info cargo run --package native --release
