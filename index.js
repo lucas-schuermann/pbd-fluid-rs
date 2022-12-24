@@ -1,5 +1,5 @@
 import * as Stats from 'stats.js';
-import * as dat from 'dat.gui';
+import GUI from 'lil-gui';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id) => document.getElementById(id);
@@ -11,7 +11,7 @@ import('./pkg').then(rust_wasm => {
     $('container').appendChild(stats.dom);
 
     // attach controls window
-    const gui = new dat.GUI({ autoPlace: false });
+    const gui = new GUI({ autoPlace: false });
     gui.domElement.style.opacity = 0.9;
     let props = {
         particles: 0,
@@ -26,9 +26,12 @@ import('./pkg').then(rust_wasm => {
             setInfo();
         },
     };
-    const setInfo = () => props.particles = sim.get_num_particles();
-    gui.add(props, 'particles').listen();
-    gui.add(props, 'viscosity', 0, 0.75, 0.01).onChange((v) => sim.set_viscosity(v));
+    const particlesControl = gui.add(props, 'particles').disable();
+    const setInfo = () => {
+        props.particles = sim.get_num_particles();
+        particlesControl.updateDisplay();
+    };
+    gui.add(props, 'viscosity', 0, 0.75, 0.005).onChange((v) => sim.set_viscosity(v));
     gui.add(props, 'substeps', 5, 10, 1).onChange((v) => sim.set_solver_substeps(v));
     gui.add(props, 'block').name('add block');
     gui.add(props, 'reset').name('reset simulation');
