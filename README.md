@@ -15,7 +15,7 @@ apt install build-essential pkg-config cmake libfreetype6-dev libfontconfig1-dev
 ```bash
 RUST_LOG=info cargo run --package native --release
 ```
-Press `r` to reset simulation or `space` to add a block of particles
+Press `1-4` to select a dam break scene and reset the simulation, `s` to toggle drawing with a single color, or `space` to add a block of particles.
 
 ### Web (npm)
 ```bash
