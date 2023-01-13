@@ -1,3 +1,10 @@
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use std::f32::consts::PI;
 
 use cgmath::num_traits::{clamp, clamp_min};
@@ -94,7 +101,7 @@ pub struct State {
     first_neighbor: Vec<usize>,
     neighbors: Vec<usize>,
 
-    viscosity: f32,
+    pub viscosity: f32,
     num_substeps: usize,
     dt: f32,
 }
@@ -135,10 +142,6 @@ impl State {
     #[must_use]
     pub fn get_positions(&self) -> &[Vec2] {
         &self.particles.pos[0..self.num_particles]
-    }
-
-    pub fn set_viscosity(&mut self, viscosity: f32) {
-        self.viscosity = viscosity;
     }
 
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
