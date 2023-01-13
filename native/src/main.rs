@@ -55,14 +55,14 @@ fn main() -> Result<(), String> {
         in vec2 position;
         out vec4 color;
 
-        void main() {{
+        void main() {
             gl_Position = projection_matrix * view_matrix * vec4(position, 0.0, 1.0);
-            if (draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {{
+            if (draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {
                 color = particle_color_1;
-            }} else {{
+            } else {
                 color = particle_color_2;
-            }}
-        }}
+            }
+        }
     "#;
     let fragment_shader_src = r#"
         #version 140
