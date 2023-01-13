@@ -65,7 +65,7 @@ impl Simulation {
 
     #[wasm_bindgen(setter)]
     pub fn set_viscosity(&mut self, viscosity: f32) {
-        self.state.set_viscosity(viscosity);
+        self.state.viscosity = viscosity;
     }
 
     #[wasm_bindgen(setter)]
