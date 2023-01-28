@@ -179,19 +179,19 @@ fn init_webgl(
         const vec4 particle_color_1 = vec4(0.2549019608, 0.4117647059, 1.0, 1.0); // #4169E1
         const vec4 particle_color_2 = vec4(1.0, 0.2549019608, 0.2980392157, 1.0); // #E1414C
 
-        uniform mat4 projection_matrix;
-        uniform mat4 view_matrix;
-        uniform int draw_mode_single_color;
-        in vec2 position;
-        out vec4 color;
+        uniform mat4 u_projection_matrix;
+        uniform mat4 u_view_matrix;
+        uniform int u_draw_mode_single_color;
+        in vec2 in_position;
+        out vec4 frag_color;
 
         void main() {{
             gl_PointSize = {:.1};
-            gl_Position = projection_matrix * view_matrix * vec4(position, 0.0, 1.0);
-            if (draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {{
-                color = particle_color_1;
+            gl_Position = u_projection_matrix * u_view_matrix * vec4(in_position, 0.0, 1.0);
+            if (u_draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {{
+                frag_color = particle_color_1;
             }} else {{
-                color = particle_color_2;
+                frag_color = particle_color_2;
             }}
         }}
         "##,
@@ -207,15 +207,15 @@ fn init_webgl(
         precision mediump float;
         const vec4 boundary_color = vec4(0.4392156863, 0.5019607843, 0.5647058824, 1.0); // #708090
 
-        uniform int draw_mode_boundary;
-        in vec4 color;
-        out vec4 f_color;
+        uniform int u_draw_mode_boundary;
+        in vec4 frag_color;
+        out vec4 out_color;
 
         void main() {
-            if (draw_mode_boundary == 1) {
-                f_color = boundary_color;
+            if (u_draw_mode_boundary == 1) {
+                out_color = boundary_color;
             } else {
-                f_color = color;
+                out_color = frag_color;
             }
         }
         "#,
@@ -225,7 +225,7 @@ fn init_webgl(
 
     // set shader matrix uniforms
     let projection_uniform = context
-        .get_uniform_location(&program, "projection_matrix")
+        .get_uniform_location(&program, "u_projection_matrix")
         .expect("Unable to get shader projection matrix uniform location");
     let ortho_matrix = cgmath::ortho(
         0.0,
@@ -242,7 +242,7 @@ fn init_webgl(
         ortho_matrix_flattened_ref,
     );
     let view_uniform = context
-        .get_uniform_location(&program, "view_matrix")
+        .get_uniform_location(&program, "u_view_matrix")
         .expect("Unable to get shader view matrix uniform location");
     let view_matrix: [f32; 16] = [
         solver::DRAW_SCALE,
@@ -264,13 +264,13 @@ fn init_webgl(
     ];
     context.uniform_matrix4fv_with_f32_array(Some(&view_uniform), false, &view_matrix);
     let draw_mode_single_color_uniform = context
-        .get_uniform_location(&program, "draw_mode_single_color")
+        .get_uniform_location(&program, "u_draw_mode_single_color")
         .expect("Unable to get vertex color mode uniform location");
     context.uniform1i(Some(&draw_mode_single_color_uniform), 0);
     let draw_mode_boundary_uniform = context
-        .get_uniform_location(&program, "draw_mode_boundary")
+        .get_uniform_location(&program, "u_draw_mode_boundary")
         .expect("Unable to get fragment boundary uniform location");
-    let position_attrib_location = context.get_attrib_location(&program, "position") as u32;
+    let position_attrib_location = context.get_attrib_location(&program, "in_position") as u32;
 
     // prepopulate boundary geometry
     let boundaries: Vec<f32> = boundaries
@@ -335,7 +335,14 @@ fn set_buffers_and_attributes(
     attrib_location: u32,
 ) {
     context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
-    context.vertex_attrib_pointer_with_i32(0, 2, WebGl2RenderingContext::FLOAT, false, 0, 0);
+    context.vertex_attrib_pointer_with_i32(
+        attrib_location,
+        2,
+        WebGl2RenderingContext::FLOAT,
+        false,
+        0,
+        0,
+    );
     context.enable_vertex_attrib_array(attrib_location);
 }
 

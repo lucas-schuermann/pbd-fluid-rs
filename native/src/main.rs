@@ -21,9 +21,9 @@ const POINT_SIZE: f32 = 7.5;
 
 #[derive(Copy, Clone)]
 struct Vertex {
-    position: [f32; 2],
+    in_position: [f32; 2],
 }
-implement_vertex!(Vertex, position);
+implement_vertex!(Vertex, in_position);
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<(), String> {
@@ -49,18 +49,18 @@ fn main() -> Result<(), String> {
         const vec4 particle_color_1 = vec4(0.2549019608, 0.4117647059, 1.0, 1.0); // #4169E1
         const vec4 particle_color_2 = vec4(1.0, 0.2549019608, 0.2980392157, 1.0); // #E1414C
 
-        uniform mat4 projection_matrix;
-        uniform mat4 view_matrix;
-        uniform int draw_mode_single_color;
-        in vec2 position;
-        out vec4 color;
+        uniform mat4 u_projection_matrix;
+        uniform mat4 u_view_matrix;
+        uniform int u_draw_mode_single_color;
+        in vec2 in_position;
+        out vec4 frag_color;
 
         void main() {
-            gl_Position = projection_matrix * view_matrix * vec4(position, 0.0, 1.0);
-            if (draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {
-                color = particle_color_1;
+            gl_Position = u_projection_matrix * u_view_matrix * vec4(in_position, 0.0, 1.0);
+            if (u_draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {
+                frag_color = particle_color_1;
             } else {
-                color = particle_color_2;
+                frag_color = particle_color_2;
             }
         }
     "#;
@@ -69,15 +69,15 @@ fn main() -> Result<(), String> {
         precision mediump float;
         const vec4 boundary_color = vec4(0.4392156863, 0.5019607843, 0.5647058824, 1.0); // #708090
 
-        uniform int draw_mode_boundary;
-        in vec4 color;
-        out vec4 f_color;
+        uniform int u_draw_mode_boundary;
+        in vec4 frag_color;
+        out vec4 out_color;
 
         void main() {
-            if (draw_mode_boundary == 1) {
-                f_color = boundary_color;
+            if (u_draw_mode_boundary == 1) {
+                out_color = boundary_color;
             } else {
-                f_color = color;
+                out_color = frag_color;
             }
         }
     "#;
@@ -112,19 +112,23 @@ fn main() -> Result<(), String> {
             let h = p[3] - p[2];
             // form a rectangle using two triangles, three vertices each
             [
-                Vertex { position: [x, y] },
                 Vertex {
-                    position: [x + w, y],
+                    in_position: [x, y],
                 },
                 Vertex {
-                    position: [x + w, y + h],
-                },
-                Vertex { position: [x, y] },
-                Vertex {
-                    position: [x, y + h],
+                    in_position: [x + w, y],
                 },
                 Vertex {
-                    position: [x + w, y + h],
+                    in_position: [x + w, y + h],
+                },
+                Vertex {
+                    in_position: [x, y],
+                },
+                Vertex {
+                    in_position: [x, y + h],
+                },
+                Vertex {
+                    in_position: [x + w, y + h],
                 },
             ]
         })
@@ -133,10 +137,10 @@ fn main() -> Result<(), String> {
         glium::VertexBuffer::empty_immutable(&display, boundaries.len())
             .map_err(|e| format!("Failed to create boundary vertex buffer: {e}"))?;
     let boundary_uniforms = uniform! {
-        projection_matrix: ortho_matrix,
-        view_matrix: view_matrix,
-        draw_mode_boundary: 1,
-        draw_mode_single_color: 0,
+        u_projection_matrix: ortho_matrix,
+        u_view_matrix: view_matrix,
+        u_draw_mode_boundary: 1,
+        u_draw_mode_single_color: 0,
     };
     let boundary_indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
     let boundary_draw_params = glium::DrawParameters {
@@ -148,7 +152,7 @@ fn main() -> Result<(), String> {
     // preallocate particle vertex buffer
     let empty_buffer = vec![Vec2::ZERO; MAX_PARTICLES];
     let bindings: VertexFormat = Cow::Owned(vec![(
-        Cow::Borrowed("position"),
+        Cow::Borrowed("in_position"),
         0,
         0,
         glium::vertex::AttributeType::F32F32,
@@ -164,13 +168,13 @@ fn main() -> Result<(), String> {
         .map_err(|e| format!("Failed to create particle vertex buffer: {e}"))?
     };
     let particle_uniforms_base = uniform! {
-        projection_matrix: ortho_matrix,
-        view_matrix: view_matrix,
-        draw_mode_boundary: 0,
+        u_projection_matrix: ortho_matrix,
+        u_view_matrix: view_matrix,
+        u_draw_mode_boundary: 0,
     };
     let mut draw_single_color = false;
     let mut particle_uniforms =
-        particle_uniforms_base.add("draw_mode_single_color", draw_single_color.into());
+        particle_uniforms_base.add("u_draw_mode_single_color", draw_single_color.into());
     let partcile_indices = index::NoIndices(index::PrimitiveType::Points);
     let particle_draw_params = glium::DrawParameters {
         polygon_mode: glium::PolygonMode::Point,
@@ -218,7 +222,7 @@ fn main() -> Result<(), String> {
                     (VirtualKeyCode::S, ElementState::Pressed) => {
                         draw_single_color = !draw_single_color;
                         particle_uniforms = particle_uniforms_base.add(
-                            "draw_mode_single_color",
+                            "u_draw_mode_single_color",
                             Into::<i32>::into(draw_single_color),
                         );
                     }
