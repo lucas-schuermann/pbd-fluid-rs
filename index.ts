@@ -50,7 +50,11 @@ import('./pkg').then(rust_wasm => {
 
     // import wasm package and initialize simulation
     const useDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const sim = new rust_wasm.Simulation($('canvas') as HTMLCanvasElement, useDarkMode);
+    const canvas = $('canvas') as HTMLCanvasElement;
+    canvas.width = 800;
+    canvas.height = 600;
+    const context = canvas.getContext("webgl2", { antialias: true, desynchronized: true, powerPreference: "high-performance" });
+    const sim = new rust_wasm.Simulation(context, canvas.width, canvas.height, useDarkMode);
     setInfo();
 
     // main loop

@@ -5,8 +5,8 @@
     clippy::cast_sign_loss
 )]
 
+use cgmath::vec2;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
 use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader, WebGlUniformLocation,
 };
@@ -18,6 +18,7 @@ const DAM_PARTICLES_Y: usize = 1000;
 const BLOCK_PARTICLES: usize = 400;
 const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
 const POINT_SIZE: f32 = 3.0;
+const DRAW_SCALE: f32 = 200.0;
 
 #[wasm_bindgen]
 pub struct Simulation {
@@ -40,12 +41,21 @@ impl Simulation {
     /// Will return `Err` if unable to initialize webgl2 context and compile/link shader programs.
     #[wasm_bindgen(constructor)]
     pub fn new(
-        canvas: &web_sys::HtmlCanvasElement,
+        context: WebGl2RenderingContext,
+        width: f32,
+        height: f32,
         use_dark_colors: bool,
     ) -> Result<Simulation, JsValue> {
-        let mut state = solver::State::new();
+        let x_extent = width * 0.5 / DRAW_SCALE;
+        let mut state = solver::State::new(x_extent);
         state.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
-        let renderer = init_webgl(canvas, &state.get_boundaries(), use_dark_colors)?;
+        let renderer = init_webgl(
+            context,
+            width as i32,
+            height as i32,
+            &state.get_boundaries(),
+            use_dark_colors,
+        )?;
         Ok(Simulation { renderer, state })
     }
 
@@ -146,24 +156,13 @@ impl Simulation {
 
 #[allow(clippy::too_many_lines)]
 fn init_webgl(
-    canvas: &web_sys::HtmlCanvasElement,
+    context: WebGl2RenderingContext,
+    width: i32,
+    height: i32,
     boundaries: &[[f32; 4]],
     use_dark_colors: bool,
 ) -> Result<RenderState, JsValue> {
-    // set up canvas and webgl context handle
-    canvas.set_width(solver::WINDOW_WIDTH);
-    canvas.set_height(solver::WINDOW_HEIGHT);
-    let context = canvas
-        .get_context("webgl2")?
-        .unwrap()
-        .dyn_into::<WebGl2RenderingContext>()?;
-
-    context.viewport(
-        0,
-        0,
-        solver::WINDOW_WIDTH as i32,
-        solver::WINDOW_HEIGHT as i32,
-    );
+    context.viewport(0, 0, width, height);
     if use_dark_colors {
         context.clear_color(0.1, 0.1, 0.1, 1.0);
     } else {
@@ -186,7 +185,7 @@ fn init_webgl(
         out vec4 frag_color;
 
         void main() {{
-            gl_PointSize = {:.1};
+            gl_PointSize = {POINT_SIZE:.1};
             gl_Position = u_projection_matrix * u_view_matrix * vec4(in_position, 0.0, 1.0);
             if (u_draw_mode_single_color == 1 || int(floor(float(gl_VertexID) / 1000.0)) % 2 == 0) {{
                 frag_color = particle_color_1;
@@ -195,7 +194,6 @@ fn init_webgl(
             }}
         }}
         "##,
-            POINT_SIZE
         )
         .as_str(),
     )?;
@@ -227,14 +225,7 @@ fn init_webgl(
     let projection_uniform = context
         .get_uniform_location(&program, "u_projection_matrix")
         .expect("Unable to get shader projection matrix uniform location");
-    let ortho_matrix = cgmath::ortho(
-        0.0,
-        solver::WINDOW_WIDTH as f32,
-        solver::WINDOW_HEIGHT as f32,
-        0.0,
-        -1.0,
-        1.0,
-    );
+    let ortho_matrix = cgmath::ortho(0.0, width as f32, height as f32, 0.0, -1.0, 1.0);
     let ortho_matrix_flattened_ref: &[f32; 16] = ortho_matrix.as_ref();
     context.uniform_matrix4fv_with_f32_array(
         Some(&projection_uniform),
@@ -244,21 +235,22 @@ fn init_webgl(
     let view_uniform = context
         .get_uniform_location(&program, "u_view_matrix")
         .expect("Unable to get shader view matrix uniform location");
+    let draw_orig = vec2(width as f32 / 2.0, height as f32);
     let view_matrix: [f32; 16] = [
-        solver::DRAW_SCALE,
+        DRAW_SCALE,
         0.0,
         0.0,
         0.0,
         0.0,
-        -solver::DRAW_SCALE, // flip y coordinate from solver
+        -DRAW_SCALE, // flip y coordinate from solver
         0.0,
         0.0,
         0.0,
         0.0,
-        solver::DRAW_SCALE,
+        DRAW_SCALE,
         0.0,
-        solver::DRAW_ORIG.x,
-        solver::DRAW_ORIG.y,
+        draw_orig.x,
+        draw_orig.y,
         0.0,
         1.0,
     ];

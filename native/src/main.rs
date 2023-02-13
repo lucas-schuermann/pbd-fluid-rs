@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 
-use glam::Vec2;
+use glam::{vec2, Vec2};
 use glium::{glutin, implement_vertex, index, uniform, Surface, VertexFormat};
 use glutin::event::{ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode, WindowEvent};
 use log::info;
@@ -18,6 +18,9 @@ const DAM_PARTICLES_Y: usize = 1000;
 const BLOCK_PARTICLES: usize = 500;
 const MAX_PARTICLES: usize = solver::MAX_PARTICLES;
 const POINT_SIZE: f32 = 7.5;
+const DRAW_SCALE: f32 = 200.0;
+const WINDOW_WIDTH: f32 = 800.0;
+const WINDOW_HEIGHT: f32 = 600.0;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -29,12 +32,13 @@ implement_vertex!(Vertex, in_position);
 fn main() -> Result<(), String> {
     env_logger::init();
 
-    let mut sim = solver::State::new();
+    let x_extent = WINDOW_WIDTH * 0.5 / DRAW_SCALE;
+    let mut sim = solver::State::new(x_extent);
     sim.init_dam_break(DAM_PARTICLES_X, DAM_PARTICLES_Y);
     info!("Initialized dam break with {} particles", sim.num_particles);
 
     let event_loop = glutin::event_loop::EventLoop::new();
-    let size: glutin::dpi::LogicalSize<u32> = (solver::WINDOW_WIDTH, solver::WINDOW_HEIGHT).into();
+    let size: glutin::dpi::LogicalSize<u32> = (WINDOW_WIDTH, WINDOW_HEIGHT).into();
     let wb = glutin::window::WindowBuilder::new()
         .with_inner_size(size)
         .with_resizable(false)
@@ -84,20 +88,14 @@ fn main() -> Result<(), String> {
     let program =
         glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None)
             .map_err(|e| format!("Failed to parse vertex shader source: {e}"))?;
-    let ortho_matrix: [[f32; 4]; 4] = cgmath::ortho(
-        0.0,
-        solver::WINDOW_WIDTH as f32,
-        solver::WINDOW_HEIGHT as f32,
-        0.0,
-        -1.0,
-        1.0,
-    )
-    .into();
+    let ortho_matrix: [[f32; 4]; 4] =
+        cgmath::ortho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, -1.0, 1.0).into();
+    let draw_orig = vec2(WINDOW_WIDTH / 2.0, WINDOW_HEIGHT);
     let view_matrix: [[f32; 4]; 4] = [
-        [solver::DRAW_SCALE, 0.0, 0.0, 0.0],
-        [0.0, -solver::DRAW_SCALE, 0.0, 0.0], // flip y coordinate from solver
-        [0.0, 0.0, solver::DRAW_SCALE, 0.0],
-        [solver::DRAW_ORIG.x, solver::DRAW_ORIG.y, 0.0, 1.0],
+        [DRAW_SCALE, 0.0, 0.0, 0.0],
+        [0.0, -DRAW_SCALE, 0.0, 0.0], // flip y coordinate from solver
+        [0.0, 0.0, DRAW_SCALE, 0.0],
+        [draw_orig.x, draw_orig.y, 0.0, 1.0],
     ];
 
     // prepopulate boundary geometry and draw configuration

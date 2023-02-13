@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn dam_break(n: usize, i: usize) {
-    let mut state = solver::State::new();
+    let mut state = solver::State::new(2.0);
     state.init_dam_break(10, n / 10);
     for _ in 0..i {
         state.update();
