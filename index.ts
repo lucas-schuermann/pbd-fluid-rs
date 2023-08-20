@@ -51,11 +51,21 @@ import('./pkg').then(rust_wasm => {
     // import wasm package and initialize simulation
     const useDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const canvas = $('canvas') as HTMLCanvasElement;
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     const context = canvas.getContext("webgl2", { antialias: true, desynchronized: true, powerPreference: "high-performance" });
-    const sim = new rust_wasm.Simulation(context, canvas.width, canvas.height, useDarkMode);
+    let sim = new rust_wasm.Simulation(context, canvas.width, canvas.height, useDarkMode);
     setInfo();
+
+    let resizeTimer: NodeJS.Timeout; // limit resize events to once per 250ms
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            sim = new rust_wasm.Simulation(context, canvas.width, canvas.height, useDarkMode);
+        }, 250);
+    });
 
     // main loop
     const animate = () => {
