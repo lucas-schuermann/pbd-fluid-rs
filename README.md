@@ -1,8 +1,8 @@
-![Build](https://github.com/cerrno/pbd-fluid-rs/actions/workflows/main.yml/badge.svg)
+![Build](https://github.com/lucas-schuermann/pbd-fluid-rs/actions/workflows/main.yml/badge.svg)
 
 `pbd-fluid-rs` is a 2D Position Based Fluid implementation in Rust with WASM + WebGL. It was inspired by Matthais Müller's [position based fluid demo](https://matthias-research.github.io/pages/challenges/fluid2d.html).
 
-For a quick demo, please see https://cerrno.github.io/pbd-fluid-rs/. The WASM version of this project is deployed to Github Pages after building with Github Actions.
+For a quick demo, please see https://lucas-schuermann.github.io/pbd-fluid-rs/. The WASM version of this project is deployed to Github Pages after building with Github Actions.
 
 ## Running
 ### Package Dependencies

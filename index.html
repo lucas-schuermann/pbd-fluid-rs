@@ -4,91 +4,105 @@
 <head>
     <meta charset="utf-8" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
     <title>2D Position Based Fluid - WASM + WebGL | Lucas V. Schuermann</title>
     <style>
+        html {
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
+        }
+
+        body {
+            margin: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: Monospace;
+            font-size: 13px;
+            line-height: 20px;
+            overscroll-behavior: none;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+            pointer-events: auto;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        canvas {
+            display: block;
+            outline: none;
+            border: none;
+        }
+
+        #info {
+            color: inherit;
+            position: absolute;
+            top: 0px;
+            width: 100%;
+            padding: 10px 255px 0px 90px;
+            box-sizing: border-box;
+            text-align: center;
+            user-select: none;
+            pointer-events: none;
+            z-index: 1;
+        }
+
         #container {
             position: relative;
-            width: fit-content;
+            width: 100%;
+            height: 100%;
         }
 
         #gui {
             position: absolute;
             top: 0;
             right: 0;
+            z-index: 2 !important;
         }
 
-        pre {
-            white-space: pre-wrap;
+        @media all and (max-width: 640px) {
+            #info {
+                padding-right: 10px;
+            }
+
+            #gui {
+                right: auto;
+                top: auto;
+                max-height: 80%;
+                max-width: 80%;
+                bottom: 0;
+                left: 0;
+            }
         }
 
-        /* table used for page header */
-        table.h {
-            margin: 0 0 0 2rem;
-            border-spacing: 0;
-        }
-
-        table.h th {
-            padding: 0;
-            font-weight: normal;
-            text-align: right;
-            vertical-align: baseline;
-        }
-
-        table.h td {
-            padding: 0;
-        }
-
-        /* container */
-        .c {
-            font-family: monospace;
-            word-wrap: break-word;
-            max-width: 50rem;
+        @media (prefers-color-scheme: light) {
+            body {
+                background-color: #fff;
+                color: #000;
+            }
         }
     </style>
 </head>
 
 <body>
-    <pre>
-+----------------------------------------+
-| 2D Position Based Fluid - WASM + WebGL |
-+----------------------------------------+
-</pre>
-    <div class="c">
-        <table class="h">
-            <tr>
-                <th>authors:&nbsp;</th>
-                <td><a href="https://lucasschuermann.com" target="_blank" rel="noopener">Lucas V. Schuermann</a></td>
-            </tr>
-            <tr>
-                <th>code:&nbsp;</th>
-                <td><a href="https://github.com/cerrno/pbd-fluid-rs">GitHub</a></td>
-            </tr>
-            <tr>
-                <th>published:&nbsp;</th>
-                <td>09/11/2021</td>
-            </tr>
-            <tr>
-                <th>updated:&nbsp;</th>
-                <td>01/13/2023</td>
-            </tr>
-        </table>
-        <br />
+    <div id="info">
+        <a href="https://lucasschuermann.com" target="_blank" rel="noopener">Lucas V. Schuermann</a> -
+        2D Position Based Fluid - WASM + WebGL
+        <br>
+        <a href="https://github.com/lucas-schuermann/pbd-fluid-rs">View code on GitHub</a>
+    </div>
 
-        <p>
-            This demo was tested on Chrome 107, Safari 16, and Firefox 107. It should work with any browser that
-            supports <a href="https://caniuse.com/webgl2">WebGL2</a> and <a href="https://caniuse.com/wasm">WASM</a>. At
-            the time of writing, these features are supported for ~93% of web users. A desktop browser is recommended.
-        </p>
-        <br />
-
-        <div id="container">
-            <canvas id="canvas">
-                <pre>Browser does not support required features</pre>
-            </canvas>
-            <div id="gui"></div>
-        </div>
+    <div id="container">
+        <canvas id="canvas">
+            <pre>Browser does not support required features</pre>
+        </canvas>
+        <div id="gui"></div>
+    </div>
 </body>
 
 </html>
