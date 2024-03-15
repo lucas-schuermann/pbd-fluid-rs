@@ -23,15 +23,15 @@ wasm-bindgen = { workspace = true }
 solver = { path = "solver" }
 
 [workspace.dependencies]
-env_logger = "0.10.0"
-log = "0.4.20"
-glam = { version = "0.24.1", features = ["fast-math", "scalar-math"] }
+env_logger = "0.11.3"
+log = "0.4.21"
+glam = { version = "0.25.0", features = ["fast-math", "scalar-math"] }
 criterion = "0.5.1"
 glium = "0.32.1"
 cgmath = "0.18.0"
-js-sys = "0.3.64"
-wasm-bindgen = "0.2.87"
-web-sys = { version = "0.3.64", features = [
+js-sys = "0.3.69"
+wasm-bindgen = "0.2.92"
+web-sys = { version = "0.3.69", features = [
   'HtmlCanvasElement',
   'WebGlBuffer',
   'WebGl2RenderingContext',
